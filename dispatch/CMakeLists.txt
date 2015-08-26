@@ -1,0 +1,7 @@
+add_library(dispatch dispatch.c++)
+set_target_properties(dispatch PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(dispatch PRIVATE Threads::Threads)
+target_link_libraries(dispatch PRIVATE predictor)
+if(FOUND_BLOCKSRUNTIME)
+target_link_libraries(dispatch PRIVATE ${BLOCKSRUNTIME_LIB})
+endif()
