@@ -22,6 +22,12 @@ static pid_t gettid() { return static_cast<pid_t>(syscall(SYS_gettid)); }
 
 namespace atlas {
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wexit-time-destructors"
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+static atlas::estimator application_estimator;
+#pragma clang diagnostic pop
+
 namespace {
 static auto cpu_set_to_vector(cpu_set_t *cpu_set) {
   std::vector<int> cpus;
@@ -172,22 +178,20 @@ struct dispatch_queue::impl {
   };
   uint32_t magic = 0x61746C73; // 'atls'
   std::string label_;
-  std::unique_ptr<estimator> estimator_ctx;
   std::unique_ptr<queue_worker> worker;
 
-  impl(dispatch_queue *queue, std::string label)
-      : label_(std::move(label)), estimator_ctx(std::make_unique<estimator>()) {
+  impl(dispatch_queue *queue, std::string label) : label_(std::move(label)) {
     std::promise<pid_t> promise;
     auto fut = promise.get_future();
-    worker = std::make_unique<queue_worker>(queue, estimator_ctx.get(),
+    worker = std::make_unique<queue_worker>(queue, &application_estimator,
                                             std::move(promise));
     fut.get();
   }
   impl(dispatch_queue *queue, std::string label, std::vector<int> cpu_set)
-      : label_(std::move(label)), estimator_ctx(std::make_unique<estimator>()) {
+      : label_(std::move(label)) {
     std::promise<pid_t> promise;
     auto fut = promise.get_future();
-    worker = std::make_unique<queue_worker>(queue, estimator_ctx.get(),
+    worker = std::make_unique<queue_worker>(queue, &application_estimator,
                                             std::move(promise));
     fut.get();
   }
