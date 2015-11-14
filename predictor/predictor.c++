@@ -119,6 +119,7 @@ struct estimator::impl {
 
   std::chrono::nanoseconds predict(estimator_ctx &estimator) {
     using namespace std::chrono;
+    assert(estimator.jobs.size() > 0);
     auto &job = estimator.jobs.back();
     job.prediction = duration_cast<nanoseconds>(
         duration<double>(estimator.llsp.predict(job.metrics.data())));
