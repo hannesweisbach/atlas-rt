@@ -2,9 +2,10 @@
 #include <utility>
 #include <algorithm>
 #include <deque>
-
 #include <iostream>
 #include <mutex>
+#include <sstream>
+#include <string>
 
 #include <assert.h>
 
@@ -12,6 +13,12 @@
 
 extern "C" {
 #include "llsp.h"
+}
+
+[[noreturn]] static void throw_estimator_not_found(const uint64_t type) {
+  std::ostringstream os;
+  os << "Estimator for type " << std::hex << type << " not found.";
+  throw std::runtime_error(os.str());
 }
 
 class llsp {
@@ -65,9 +72,12 @@ struct estimator_ctx {
   auto remove(const uint64_t id) {
     auto it = std::find_if(std::begin(jobs), std::end(jobs),
                            [id](const auto &job) { return job.id == id; });
-    if (it == std::end(jobs))
-      throw std::runtime_error("job " + std::to_string(id) + " for type " +
-                               std::to_string(type) + " not found.");
+    if (it == std::end(jobs)) {
+      std::ostringstream os;
+      os << "Job " << std::hex << id << " for Estimator type " << type
+         << " not found.";
+      throw std::runtime_error(os.str());
+    }
 
     auto job = std::move(*it);
     jobs.erase(it);
@@ -91,17 +101,15 @@ struct estimator::impl {
                          });
 
     if (it == std::end(estimators))
-      throw std::runtime_error("estimator for type " + std::to_string(type) +
-                               " not found");
+      throw_estimator_not_found(type);
+
     return it;
   }
 
   estimator_ctx &find(uint64_t type) {
     auto it = do_find(type);
     if (it->type != type)
-      throw std::runtime_error("estimator for type " + std::to_string(type) +
-                               " not found");
-
+      throw_estimator_not_found(type);
     return *it;
   }
 
