@@ -5,3 +5,5 @@ target_link_libraries(dispatch PRIVATE predictor)
 if(FOUND_BLOCKSRUNTIME)
 target_link_libraries(dispatch PRIVATE ${BLOCKSRUNTIME_LIB})
 endif()
+
+add_subdirectory(tests)
