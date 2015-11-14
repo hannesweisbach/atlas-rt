@@ -4,6 +4,7 @@
 #include <deque>
 
 #include <iostream>
+#include <mutex>
 
 #include <assert.h>
 
@@ -80,6 +81,7 @@ struct estimator_ctx {
 
 struct estimator::impl {
   std::vector<estimator_ctx> estimators;
+  mutable std::mutex lock;
 
   auto do_find(uint64_t type) {
     auto it =
@@ -134,6 +136,7 @@ std::chrono::nanoseconds estimator::predict(const uint64_t job_type,
                                             const uint64_t id,
                                             const double *metrics,
                                             const size_t count) {
+  std::lock_guard<std::mutex> l(d_->lock);
   auto &estimator = d_->find_insert(job_type, count);
 
   {
@@ -145,6 +148,7 @@ std::chrono::nanoseconds estimator::predict(const uint64_t job_type,
 
 void estimator::train(const uint64_t job_type, const uint64_t id,
                       std::chrono::nanoseconds exectime) {
+  std::lock_guard<std::mutex> l(d_->lock);
   auto &estimator = d_->find(job_type);
   {
     using namespace std::chrono;
