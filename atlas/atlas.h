@@ -21,6 +21,10 @@
 #define SYS_atlas_submit 324
 #define SYS_atlas_update 325
 #define SYS_atlas_remove 326
+#define SYS_atlas_tp_create 327
+#define SYS_atlas_tp_destroy 328
+#define SYS_atlas_tp_join 329
+#define SYS_atlas_tp_submit 330
 #elif defined(__i386__)
 #define SYS_atlas_next 359
 #define SYS_atlas_submit 360
@@ -53,6 +57,25 @@ static inline long atlas_update(pid_t tid, uint64_t id,
                                 const struct timeval *const deadline) {
   return syscall(SYS_atlas_update, tid, id, exectime, deadline);
 }
+
+static inline long atlas_tp_create(uint64_t *id) {
+  return syscall(SYS_atlas_tp_create, id);
+}
+
+static inline long atlas_tp_destroy(const uint64_t id) {
+  return syscall(SYS_atlas_tp_destroy, id);
+}
+
+static inline long atlas_tp_join(const uint64_t id) {
+  return syscall(SYS_atlas_tp_join, id);
+}
+
+static inline long atlas_submit(const uint64_t tpid, const uint64_t id,
+                                const struct timeval *const exectime,
+                                const struct timeval *const deadline) {
+  return syscall(SYS_atlas_tp_submit, tpid, id, exectime, deadline);
+}
+
 #ifdef __cplusplus
 }
 #endif
@@ -109,6 +132,46 @@ struct timeval to_timeval(const std::chrono::time_point<Clock, Duration> &t) {
 }
 }
 
+namespace threadpool {
+static inline decltype(auto) create(uint64_t &id) {
+  return syscall(SYS_atlas_tp_create, &id);
+}
+
+static inline decltype(auto) destroy(const uint64_t id) {
+  return syscall(SYS_atlas_tp_destroy, id);
+}
+
+static inline decltype(auto) join(const uint64_t id) {
+  return syscall(SYS_atlas_tp_join, id);
+}
+
+static inline decltype(auto) submit(const uint64_t tpid, const uint64_t id,
+                                    const struct timeval *const exectime,
+                                    const struct timeval *const deadline) {
+  return syscall(SYS_atlas_tp_submit, tpid, id, exectime, deadline);
+}
+
+template <class Rep1, class Period1, class Rep2, class Period2>
+decltype(auto) submit(const uint64_t tpid, const uint64_t id,
+                      const std::chrono::duration<Rep1, Period1> exec_time,
+                      const std::chrono::duration<Rep2, Period2> deadline) {
+  struct timeval tv_exectime = to_timeval(exec_time);
+  struct timeval tv_deadline =
+      to_timeval(std::chrono::steady_clock::now() + deadline);
+
+  return threadpool::submit(tpid, id, &tv_exectime, &tv_deadline);
+}
+
+template <class Rep, class Period, class Clock>
+decltype(auto) submit(const uint64_t tpid, const uint64_t id,
+                      const std::chrono::duration<Rep, Period> exec_time,
+                      const std::chrono::time_point<Clock> deadline) {
+  struct timeval tv_exectime = to_timeval(exec_time);
+  struct timeval tv_deadline = to_timeval(deadline);
+
+  return threadpool::submit(tpid, id, &tv_exectime, &tv_deadline);
+}
+}
 
 template <class Rep1, class Period1, class Rep2, class Period2>
 decltype(auto) submit(pid_t tid, uint64_t id,
