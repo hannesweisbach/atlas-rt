@@ -27,6 +27,7 @@ endif()
 include_directories(.)
 
 add_subdirectory(common)
+add_subdirectory(atlas)
 add_subdirectory(predictor)
 add_subdirectory(dispatch)
 
