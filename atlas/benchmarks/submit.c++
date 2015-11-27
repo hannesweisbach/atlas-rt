@@ -49,7 +49,7 @@ static void output(std::vector<int64_t> &data, const bool sort, const bool all) 
     for (const auto val : data)
       std::cout << val << std::endl;
   } else {
-    std::cout << "   minimum |  1st %ile |    median | 99th %ile |   maximum"
+    std::cout << "#  minimum    1st %ile      median   99th %ile     maximum"
               << std::endl;
     std::cout << std::setw(10) << data.front() << std::setw(12)
               << nth_element(data, 0.01) << std::setw(12)
