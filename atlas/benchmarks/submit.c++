@@ -37,7 +37,7 @@ static auto run(unsigned jobs, size_t count) {
 }
 
 static auto nth_element(const std::vector<int64_t> &data, const double nth) {
-  return data.at(static_cast<size_t>(data.size() * nth));
+  return data.at(static_cast<size_t>((data.size() - 1) * nth));
 }
 
 static void output(std::vector<int64_t> &data, const bool sort, const bool all) {
