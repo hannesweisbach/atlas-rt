@@ -16,12 +16,12 @@ static auto run(unsigned jobs, size_t count) {
   std::vector<int64_t> nexts(count, 0);
 
   for (unsigned job = 0; job < jobs; ++job) {
-    atlas::submit(tid, job, 1s, 1s);
+    atlas::submit(tid, job, 1s, 2s);
   }
 
   for (size_t i = 0; i < count; ++i) {
     auto s_start = steady_clock::now();
-    atlas::submit(tid, i + jobs, 1s, s_start + 1s);
+    atlas::submit(tid, i + jobs, 1s, s_start + 2s);
     auto s_end = steady_clock::now();
 
     submits[i] = duration_cast<nanoseconds>(s_end - s_start).count();
