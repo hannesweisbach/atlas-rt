@@ -36,11 +36,25 @@ static auto run(unsigned jobs, size_t count) {
   return std::make_pair(submits, nexts);
 }
 
-static auto nth_element(const std::vector<int64_t> &data, const double nth) {
-  return data.at(static_cast<size_t>((data.size() - 1) * nth));
+static auto nth_element(const std::vector<int64_t> &data, const size_t nth) {
+  return data.at(static_cast<size_t>((data.size() - 1) * nth / 100.0));
 }
 
-static void output(std::vector<int64_t> &data, const bool sort, const bool all) {
+static const char *ordstr(const size_t ord) {
+  switch (ord) {
+  case 1:
+    return "st";
+  case 2:
+    return "nd";
+  case 3:
+    return "rd";
+  default:
+    return "th";
+  }
+}
+
+static void output(std::vector<int64_t> &data, const bool sort, const bool all,
+                   const size_t quantiles) {
   if (sort || !all) {
     std::sort(std::begin(data), std::end(data));
   }
@@ -49,13 +63,20 @@ static void output(std::vector<int64_t> &data, const bool sort, const bool all) 
     for (const auto val : data)
       std::cout << val << std::endl;
   } else {
-    std::cout << "#  minimum    1st %ile      median   99th %ile     maximum"
-              << std::endl;
-    std::cout << std::setw(10) << data.front() << std::setw(12)
-              << nth_element(data, 0.01) << std::setw(12)
-              << nth_element(data, 0.5) << std::setw(12)
-              << nth_element(data, 0.99) << std::setw(12) << data.back()
-              << std::endl;
+    auto quantile = quantiles ? 100 / quantiles : 100;
+    std::cout << "#   minimum";
+
+    for (size_t q = quantile; q < 99; q += quantile) {
+      std::cout << "   " << std::setw(2) << q << ordstr(q) << "%-tile";
+    }
+    std::cout << "   99th%-ile     maximum" << std::endl;
+
+    std::cout << std::setw(11) << data.front();
+    for (size_t q = quantile; q < 99; q += quantile) {
+      std::cout << std::setw(13) << nth_element(data, q);
+    }
+    std::cout << std::setw(12) << nth_element(data, 99);
+    std::cout << std::setw(12) << data.back() << std::endl;
   }
 }
 
@@ -64,6 +85,7 @@ int main(int argc, char *argv[]) {
 
   unsigned jobs;
   size_t count;
+  size_t quantiles;
   po::options_description desc("Benchmark suite for atlas::submit() and "
                                "atlas::next(). Measures delays in nanoseconds");
 
@@ -77,10 +99,12 @@ int main(int argc, char *argv[]) {
     ("next", "Output numbers for atlas::next() instead of atlas::submit(). "
      "(Default: atlas::submit())")
     ("sort", "Output numbers sorted.")
-    ("all", "Output all numbers. (instead of short statistic");
-      // clang-format on
+    ("all", "Output all numbers. (instead of short statistic")
+    ("quantiles", po::value(&quantiles)->default_value(2),
+     "Number of quantiles, i.e. 4 for 25% quantiles.");
+  // clang-format on
 
-      po::variables_map vm;
+  po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
@@ -94,7 +118,8 @@ int main(int argc, char *argv[]) {
 
   std::tie(submits, nexts) = run(jobs, count);
 
-  output(vm.count("next") ? nexts : submits, vm.count("sort"), vm.count("all"));
+  output(vm.count("next") ? nexts : submits, vm.count("sort"), vm.count("all"),
+         quantiles);
 
   return EXIT_SUCCESS;
 }
