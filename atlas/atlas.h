@@ -179,7 +179,7 @@ decltype(auto) submit(pid_t tid, uint64_t id,
                       std::chrono::duration<Rep2, Period2> deadline) {
   struct timeval tv_exectime = to_timeval(exec_time);
   struct timeval tv_deadline =
-      to_timeval(std::chrono::high_resolution_clock::now() + deadline);
+      to_timeval(std::chrono::steady_clock::now() + deadline);
 
   return atlas_submit(tid, id, &tv_exectime, &tv_deadline);
 }
@@ -200,7 +200,7 @@ decltype(auto) update(pid_t tid, uint64_t id,
                       std::chrono::duration<Rep2, Period2> deadline) {
   struct timeval tv_exectime = to_timeval(exec_time);
   struct timeval tv_deadline =
-      to_timeval(std::chrono::high_resolution_clock::now() + deadline);
+      to_timeval(std::chrono::steady_clock::now() + deadline);
 
   return atlas_update(tid, id, &tv_exectime, &tv_deadline);
 }
