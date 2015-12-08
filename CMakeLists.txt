@@ -13,6 +13,11 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 find_library(BLOCKSRUNTIME_FOUND BlocksRuntime)
 
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME ON)
+find_package(Boost 1.54.0 COMPONENTS program_options math_tr1 REQUIRED)
+
 if(${BLOCKSRUNTIME_FOUND} MATCHES "-NOTFOUND")
   message(STATUS "BlocksRuntime not found.")
   set(FOUND_BLOCKSRUNTIME false)
@@ -25,6 +30,7 @@ else()
 endif()
 
 include_directories(.)
+include_directories(${Boost_INCLUDE_DIR})
 
 add_subdirectory(common)
 add_subdirectory(atlas)
