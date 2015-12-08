@@ -258,6 +258,8 @@ static inline decltype(auto) from(const std::thread &thread) {
   return from(thread.get_id());
 }
 
+static inline auto from(const pid_t &tid) { return tid; }
+
 template <typename Handle, class Rep1, class Period1, class Rep2, class Period2>
 decltype(auto) submit(const Handle &tid, uint64_t id,
                       std::chrono::duration<Rep1, Period1> exec_time,
