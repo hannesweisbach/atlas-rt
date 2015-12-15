@@ -301,7 +301,7 @@ int main(int argc, char *argv[]) {
   // clang-format off
   desc.add_options()
     ("help", "Produce help message")
-    ("tasks", po::value(&tasks)->default_value(1),
+    ("tasks", po::value(&tasks)->default_value(2),
      "Number of tasks in the task set. (Default: 1)")
     ("count", po::value(&count)->default_value(1000),
      "Number of task sets to generate. (Default: 1000)")
