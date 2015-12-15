@@ -121,7 +121,6 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
     throw std::runtime_error("n*umax < usum");
   const auto bin_count =
       static_cast<size_t>(std::ceil(std::log10(p_max / p_min)));
-  std::cout << "Bin count: " << bin_count << std::endl;
   std::vector<bin_t> bins(bin_count);
 
   {
@@ -140,6 +139,7 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
     }
 
 #ifdef DEBUG_BINS
+    std::cout << "Bin count: " << bin_count << std::endl;
     for (const auto &bin : bins) {
       std::cout << "(" << std::setw(10) << bin.first.count() << ", "
                 << std::setw(10) << bin.second.count() << ")" << std::endl;
@@ -148,14 +148,7 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
   }
 
   const auto utilizations = uunisort(n, usum, umax);
-  for (const auto &u : utilizations)
-    std::cout << u << " ";
-  std::cout << std::accumulate(std::begin(utilizations), std::end(utilizations),
-                               utilization<Rep, Res>{0})
-            << std::endl;
-  const auto all = n / bin_count * std::min(n, bin_count);
-  const auto random = n - all;
-  std::cout << all << " " << random << std::endl;
+  const auto all = (bin_count > n) ? n / bin_count * std::min(n, bin_count) : 0;
   std::vector<task_attr> ts(n);
 
   size_t i = 0;
@@ -167,8 +160,6 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
         // period [us] * utilization [milli] -> execution time [ns]
         const auto e = execution_time{duration_cast<microseconds>(p).count() *
                                       u.utilization};
-        std::cout << u << " " << duration_cast<microseconds>(p).count() << " "
-                  << duration_cast<microseconds>(e).count() << std::endl;
         return task_attr{e, p, u};
       });
 
@@ -178,10 +169,6 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
                    const auto p = period{draw_from(bins.at(bin))};
                    const auto e = execution_time{
                        duration_cast<microseconds>(p).count() * u.utilization};
-                   std::cout << u << " "
-                             << duration_cast<microseconds>(p).count() << " "
-                             << duration_cast<microseconds>(e).count()
-                             << std::endl;
                    return task_attr{e, p, u};
                  });
 
