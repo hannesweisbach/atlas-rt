@@ -46,6 +46,10 @@ static auto do_work(const execution_time &e) {
 #endif
 #pragma clang diagnostic pop
 
+  if (e <= execution_time{0}) {
+    return reset_deadline() ? EXIT_FAILURE : EXIT_SUCCESS;
+  }
+
   auto start = cputime_clock::now();
 
   for (size_t i = 0; i < static_cast<size_t>(e / work_unit); ++i) {
@@ -114,13 +118,15 @@ class periodic_taskset {
       uint64_t id;
       atlas::next(id);
 
+      using namespace std::chrono;
 #if 1
-      if (do_work(task.attr.e) == EXIT_FAILURE) {
+      if (do_work(task.attr.e - 500us) == EXIT_FAILURE) {
 #else
       /* activate for minimum execution time mode */
-      using namespace std::chrono;
       if (do_work(1ms) == EXIT_FAILURE) {
 #endif
+        std::cerr << "Task " << task.attr << " failed on job " << job << "/"
+                  << jobs << "." << std::endl;
         deadline_miss = true;
       }
     }
