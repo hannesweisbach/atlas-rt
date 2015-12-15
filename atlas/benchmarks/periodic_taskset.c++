@@ -265,13 +265,14 @@ static void find_minimum_e(const size_t count, const period p) {
 }
 
 static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
-                          const size_t count, const bool preroll = true) {
+                          const size_t count, const period pmin,
+                          const period pmax, const bool preroll = true) {
   using namespace std::chrono;
   size_t failures = 0;
   set_procfsparam(attribute::preroll, preroll);
 
   for (size_t j = 0; j < count; ++j) {
-    periodic_taskset ts(tasks, u_sum, u_max, 10ms, 1000ms);
+    periodic_taskset ts(tasks, u_sum, u_max, pmin, pmax);
     if (ts.simulate()) {
       ++failures;
       std::cerr << "TS failed: " << ts << std::endl;
@@ -294,8 +295,8 @@ int main(int argc, char *argv[]) {
   size_t count;
   int64_t usum;
   int64_t umax;
-  uint64_t pmin;
-  uint64_t pmax;
+  int64_t pmin;
+  int64_t pmax;
 
   // clang-format off
   desc.add_options()
@@ -311,8 +312,9 @@ int main(int argc, char *argv[]) {
     ("exectime", "Find minimum execution time")
     ("min-period", po::value(&pmin)->default_value(10),
      "Minimum period of any task. (Default: 10ms)")
-    ("max-period", po::value(&pmax)->default_value(1000),
-     "Maximum period of any task. (Default: 1000ms)");
+    ("max-period", po::value(&pmax)->default_value(100),
+     "Maximum period of any task. (Default: 100ms)")
+    ("no-preroll", "Disable preroll (Default: on)");
   // clang-format on
 
   po::variables_map vm;
@@ -327,5 +329,10 @@ int main(int argc, char *argv[]) {
   if (vm.count("exectime")) {
     find_minimum_e(count, period{pmin});
     return EXIT_SUCCESS;
+  }
+
+  for (size_t task = 2; task <= tasks; ++task) {
+    auto failures = schedulable(tasks, U{usum}, U{umax}, count, period{pmin},
+                                period{pmax}, !vm.count("no-preroll"));
   }
 }
