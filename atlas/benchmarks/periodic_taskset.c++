@@ -95,13 +95,14 @@ class periodic_taskset {
 
   hyperperiod_t hyperperiod;
   std::atomic_bool deadline_miss{false};
+  std::atomic_bool stop{false};
 
   auto run(const size_t i) {
     const task &task = tasks.at(i);
     const auto jobs = hyperperiod / task.attr.p;
     record_deadline_misses();
 
-    for (auto job = 0; job < jobs && !deadline_miss; ++job) {
+    for (auto job = 0; job < jobs && !deadline_miss && !stop; ++job) {
       uint64_t id;
       atlas::next(id);
 
@@ -109,6 +110,21 @@ class periodic_taskset {
         std::cout << "Task " << task.attr << "missed deadline " << job
                   << std::endl;
         deadline_miss = true;
+      }
+    }
+
+    task.done = true;
+  }
+
+  void synchronize_end() {
+    using namespace std::chrono;
+    stop = true;
+    for (size_t i = 0; i < tasks.size(); ++i) {
+      if (!tasks.at(i).done) {
+        atlas::np::submit(threads[i], 0, 1s, 2s);
+      }
+      if (threads[i].joinable()) {
+        threads[i].join();
       }
     }
   }
@@ -125,13 +141,7 @@ public:
     for (size_t i = 0; i < n; ++i) {
       threads[i] = std::thread(&periodic_taskset::run, this, i);
     }
-  }
 
-  ~periodic_taskset() {
-    for (size_t i = 0; i < tasks.size(); ++i) {
-      if (threads[i].joinable())
-        threads[i].join();
-    }
   }
 
   void schedule() {}
