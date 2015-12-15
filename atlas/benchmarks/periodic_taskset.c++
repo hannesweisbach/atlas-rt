@@ -332,7 +332,7 @@ int main(int argc, char *argv[]) {
   }
 
   for (size_t task = 2; task <= tasks; ++task) {
-    auto failures = schedulable(tasks, U{usum}, U{umax}, count, period{pmin},
+    auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
                                 period{pmax}, !vm.count("no-preroll"));
   }
 }
