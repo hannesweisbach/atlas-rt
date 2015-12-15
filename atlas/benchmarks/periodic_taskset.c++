@@ -87,6 +87,8 @@ static auto do_work(const execution_time &e) {
 class periodic_taskset {
   struct task {
     task_attr attr;
+    pid_t tid;
+    mutable std::atomic_bool init{false};
     mutable std::atomic_bool done{false};
   };
 
@@ -102,6 +104,7 @@ class periodic_taskset {
     const auto jobs = hyperperiod / task.attr.p;
     record_deadline_misses();
 
+    task.init = true;
     for (auto job = 0; job < jobs && !deadline_miss && !stop; ++job) {
       uint64_t id;
       atlas::next(id);
@@ -140,6 +143,7 @@ public:
 
     for (size_t i = 0; i < n; ++i) {
       threads[i] = std::thread(&periodic_taskset::run, this, i);
+      tasks.at(i).tid = atlas::np::from(threads[i]);
     }
 
   }
