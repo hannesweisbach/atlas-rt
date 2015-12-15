@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -218,6 +219,32 @@ public:
   }
 
 };
+
+static void find_minimum_e(const size_t count) {
+  using namespace std::chrono;
+  std::vector<std::pair<U, size_t>> data;
+
+  set_procfsparam(attribute::preroll, 0);
+
+  for (auto u = U{100}; u < U{1000}; ++u) {
+    std::cout << std::setw(6) << u;
+    std::cout.flush();
+    data.emplace_back(u, 0);
+    for (size_t j = 0; j < count; ++j) {
+      periodic_taskset ts(1, u, u, 10ms, 10ms);
+      if (ts.simulate()) {
+        ++data.back().second;
+      }
+    }
+    std::cout << std::setw(5) << data.back().second << std::endl;
+  }
+
+  std::ofstream file("data");
+  for (const auto &v : data) {
+    file << std::setw(8) << v.first << " " << std::setw(8) << v.second
+         << std::endl;
+  }
+}
 
 int main() {
   using namespace std::chrono;
