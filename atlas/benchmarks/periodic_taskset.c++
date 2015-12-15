@@ -266,7 +266,10 @@ static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
       ++failures;
       std::cout << "TS failed: " << ts << std::endl;
     }
+    std::cout << ".";
+    std::cout.flush();
   }
+  std::cout << std::endl;
   return failures;
 }
 
