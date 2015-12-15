@@ -8,4 +8,4 @@ target_link_libraries(taskgen gmp)
 
 add_executable(periodic periodic_taskset.c++)
 set_target_properties(periodic PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(periodic taskgen common Threads::Threads)
+target_link_libraries(periodic taskgen common Threads::Threads ${Boost_LIBRARIES})

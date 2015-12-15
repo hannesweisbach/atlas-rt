@@ -13,6 +13,7 @@
 #include <sched.h>
 
 #include <boost/math/common_factor_rt.hpp>
+#include <boost/program_options.hpp>
 
 #include "atlas/atlas.h"
 #include "common/common.h"
@@ -269,7 +270,44 @@ static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
   return failures;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
   using namespace std::chrono;
-  periodic_taskset ts(4, U{3500}, {1000}, 5ms, 100ms);
+  namespace po = boost::program_options;
+
+  po::options_description desc(
+      "Generate and execute periodic task sets on atlas.");
+
+  size_t tasks;
+  size_t count;
+  int64_t usum;
+  int64_t umax;
+  uint64_t pmin;
+  uint64_t pmax;
+
+  // clang-format off
+  desc.add_options()
+    ("help", "Produce help message")
+    ("tasks", po::value(&tasks)->default_value(1),
+     "Number of tasks in the task set. (Default: 1)")
+    ("count", po::value(&count)->default_value(1000),
+     "Number of task sets to generate. (Default: 1000)")
+    ("utilization", po::value(&usum)->default_value(1000),
+     "Utilization of the task sets * 1e-3. (Default: 1000)")
+    ("task-utilization", po::value(&umax)->default_value(500),
+     "Maximum utilization of any task * 1e-3. (Default: 500)")
+    ("exectime", "Find minimum execution time")
+    ("min-period", po::value(&pmin)->default_value(10),
+     "Minimum period of any task. (Default: 10ms)")
+    ("max-period", po::value(&pmax)->default_value(1000),
+     "Maximum period of any task. (Default: 1000ms)");
+  // clang-format on
+
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+
+  if (vm.count("help")) {
+    std::cout << desc;
+    return EXIT_SUCCESS;
+  }
 }
