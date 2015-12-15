@@ -114,9 +114,13 @@ class periodic_taskset {
       uint64_t id;
       atlas::next(id);
 
+#if 1
       if (do_work(task.attr.e) == EXIT_FAILURE) {
-        std::cout << "Task " << task.attr << "missed deadline " << job
-                  << std::endl;
+#else
+      /* activate for minimum execution time mode */
+      using namespace std::chrono;
+      if (do_work(1ms) == EXIT_FAILURE) {
+#endif
         deadline_miss = true;
       }
     }
@@ -228,7 +232,7 @@ public:
   }
 };
 
-static void find_minimum_e(const size_t count) {
+static void find_minimum_e(const size_t count, const period p) {
   using namespace std::chrono;
   std::vector<std::pair<U, size_t>> data;
 
@@ -239,7 +243,7 @@ static void find_minimum_e(const size_t count) {
     std::cout.flush();
     data.emplace_back(u, 0);
     for (size_t j = 0; j < count; ++j) {
-      periodic_taskset ts(1, u, u, 10ms, 10ms);
+      periodic_taskset ts(1, u, u, p, p);
       if (ts.simulate()) {
         ++data.back().second;
       }
@@ -311,6 +315,11 @@ int main(int argc, char *argv[]) {
 
   if (vm.count("help")) {
     std::cout << desc;
+    return EXIT_SUCCESS;
+  }
+
+  if (vm.count("exectime")) {
+    find_minimum_e(count, period{pmin});
     return EXIT_SUCCESS;
   }
 }
