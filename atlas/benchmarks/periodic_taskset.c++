@@ -29,9 +29,16 @@ static auto hyperperiod(const std::vector<task_attr> &tasks) {
 static auto do_work(const execution_time &e) {
   using namespace std::chrono;
   static constexpr execution_time work_unit{100us};
+  static constexpr execution_time small_work_unit{10us};
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
-  static std::string haystack(9 * 128 * 1024, 'A');
+#if 1
+  static std::string haystack(39 * 32 * 1024, 'A');
+  static std::string small_haystack(33 * 8 * 512, 'A');
+#else
+  static std::string haystack(25 * 512, 'A');
+  static std::string small_haystack(128, 'A');
+#endif
 #pragma clang diagnostic pop
 
   auto start = cputime_clock::now();
@@ -43,12 +50,36 @@ static auto do_work(const execution_time &e) {
       std::cout << "Found." << std::endl;
   }
 
-  for (; e - work_unit < cputime_clock::now() - start;) {
+  const auto remaining = e - (cputime_clock::now() - start);
+  if (remaining <= 0s)
+    return EXIT_SUCCESS;
+
+  for (size_t i = 0; i < static_cast<size_t>(remaining / small_work_unit);
+       ++i) {
     if (reset_deadline())
       return EXIT_FAILURE;
-    if (strstr(haystack.c_str(), "test"))
+    if (strstr(small_haystack.c_str(), "test"))
       std::cout << "Found." << std::endl;
   }
+
+#if 0
+  const auto end = cputime_clock::now();
+  const auto diff = end - start;
+  std::cout << duration_cast<microseconds>(diff).count() << "us ";
+  std::cout << static_cast<size_t>(e / work_unit) << " ";
+  std::cout << static_cast<size_t>(remaining / small_work_unit) << " ";
+  std::cout << std::endl;
+#endif
+#if 1
+  for (; small_work_unit < e - (cputime_clock::now() - start);) {
+    if (reset_deadline())
+      return EXIT_FAILURE;
+    if (strstr(small_haystack.c_str(), "test"))
+      std::cout << "Found." << std::endl;
+  }
+#if 1
+#endif
+#endif
 
   return EXIT_SUCCESS;
 }
