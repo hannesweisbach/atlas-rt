@@ -52,7 +52,7 @@ static auto do_work(const execution_time &e) {
     if (reset_deadline())
       return EXIT_FAILURE;
     if (strstr(haystack.c_str(), "test"))
-      std::cout << "Found." << std::endl;
+      std::cerr << "Found." << std::endl;
   }
 
   const auto remaining = e - (cputime_clock::now() - start);
@@ -64,7 +64,7 @@ static auto do_work(const execution_time &e) {
     if (reset_deadline())
       return EXIT_FAILURE;
     if (strstr(small_haystack.c_str(), "test"))
-      std::cout << "Found." << std::endl;
+      std::cerr << "Found." << std::endl;
   }
 
 #if 0
@@ -80,7 +80,7 @@ static auto do_work(const execution_time &e) {
     if (reset_deadline())
       return EXIT_FAILURE;
     if (strstr(small_haystack.c_str(), "test"))
-      std::cout << "Found." << std::endl;
+      std::cerr << "Found." << std::endl;
   }
 #if 1
 #endif
@@ -239,8 +239,8 @@ static void find_minimum_e(const size_t count, const period p) {
   set_procfsparam(attribute::preroll, 0);
 
   for (auto u = U{100}; u < U{1000}; ++u) {
-    std::cout << std::setw(6) << u;
-    std::cout.flush();
+    std::cerr << std::setw(6) << u;
+    std::cerr.flush();
     data.emplace_back(u, 0);
     for (size_t j = 0; j < count; ++j) {
       periodic_taskset ts(1, u, u, p, p);
@@ -248,7 +248,7 @@ static void find_minimum_e(const size_t count, const period p) {
         ++data.back().second;
       }
     }
-    std::cout << std::setw(5) << data.back().second << std::endl;
+    std::cerr << std::setw(5) << data.back().second << std::endl;
   }
 
   std::ofstream file("data");
@@ -268,12 +268,12 @@ static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
     periodic_taskset ts(tasks, u_sum, u_max, 10ms, 1000ms);
     if (ts.simulate()) {
       ++failures;
-      std::cout << "TS failed: " << ts << std::endl;
+      std::cerr << "TS failed: " << ts << std::endl;
     }
-    std::cout << ".";
-    std::cout.flush();
+    std::cerr << ".";
+    std::cerr.flush();
   }
-  std::cout << std::endl;
+  std::cerr << std::endl;
   return failures;
 }
 
