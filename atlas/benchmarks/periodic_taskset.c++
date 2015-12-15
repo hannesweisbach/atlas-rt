@@ -7,6 +7,9 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <cerrno>
+
+#include <sched.h>
 
 #include <boost/math/common_factor_rt.hpp>
 
@@ -145,10 +148,75 @@ public:
       threads[i] = std::thread(&periodic_taskset::run, this, i);
       tasks.at(i).tid = atlas::np::from(threads[i]);
     }
-
   }
 
-  void schedule() {}
+  bool simulate() {
+    using namespace std::chrono;
+    struct release {
+      steady_clock::time_point r;
+      execution_time e;
+      period p;
+      pid_t tid;
+      size_t count;
+
+      bool operator<(const release &rhs) { return r < rhs.r; }
+    };
+
+#if 0
+    std::cout << "Running simulation for "
+              << duration_cast<s>(hyperperiod).count() << "s" << std::endl;
+#endif
+
+    {
+      struct sched_param param;
+      param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+      if (sched_setscheduler(0, SCHED_FIFO, &param)) {
+        std::cerr << "Error setting scheduler (" << errno
+                  << "): " << strerror(errno) << std::endl;
+        exit(EXIT_FAILURE);
+      }
+    }
+    const auto t0 = steady_clock::now();
+
+    std::vector<release> releases(tasks.size());
+    for (size_t i = 0; i < releases.size(); ++i) {
+      auto &release = releases.at(i);
+      auto &task = tasks.at(i);
+
+      release.r = t0;
+      release.e = task.attr.e;
+      release.p = task.attr.p;
+      release.tid = atlas::np::from(threads[i]);
+    }
+
+    for (; steady_clock::now() <= t0 + hyperperiod;) {
+      for (auto &&release : releases) {
+        if (release.r <= steady_clock::now()) {
+          atlas::submit(release.tid, release.count, release.e,
+                        release.r + release.p);
+          ++release.count;
+          release.r += release.p;
+        }
+      }
+
+      std::sort(std::begin(releases), std::end(releases));
+      if (deadline_miss) {
+        struct sched_param param;
+        param.sched_priority = sched_get_priority_max(SCHED_OTHER);
+        if (sched_setscheduler(0, SCHED_OTHER, &param)) {
+          std::cerr << "Error setting scheduler (" << errno
+                    << "): " << strerror(errno) << std::endl;
+          exit(EXIT_FAILURE);
+        }
+        break;
+      }
+      std::this_thread::sleep_until(releases.front().r);
+    }
+
+    synchronize_end();
+    return deadline_miss;
+  }
+
 };
 
 int main() {
