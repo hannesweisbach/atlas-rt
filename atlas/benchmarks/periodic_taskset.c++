@@ -218,6 +218,13 @@ public:
     return deadline_miss;
   }
 
+  friend std::ostream &operator<<(std::ostream &os,
+                                  const periodic_taskset &ts) {
+    for (const auto &task : ts.tasks) {
+      os << task.attr << std::endl;
+    }
+    return os;
+  }
 };
 
 static void find_minimum_e(const size_t count) {
