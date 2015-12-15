@@ -41,6 +41,11 @@ template <typename Rep, typename Res> struct utilization {
     *this = *this - rhs;
     return *this;
   }
+
+  struct utilization &operator++() {
+    ++utilization;
+    return *this;
+  }
 };
 
 template <typename Rep, typename Res, typename Scalar,
