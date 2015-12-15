@@ -253,6 +253,22 @@ static void find_minimum_e(const size_t count) {
   }
 }
 
+static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
+                          const size_t count, const bool preroll = true) {
+  using namespace std::chrono;
+  size_t failures = 0;
+  set_procfsparam(attribute::preroll, preroll);
+
+  for (size_t j = 0; j < count; ++j) {
+    periodic_taskset ts(tasks, u_sum, u_max, 10ms, 1000ms);
+    if (ts.simulate()) {
+      ++failures;
+      std::cout << "TS failed: " << ts << std::endl;
+    }
+  }
+  return failures;
+}
+
 int main() {
   using namespace std::chrono;
   periodic_taskset ts(4, U{3500}, {1000}, 5ms, 100ms);
