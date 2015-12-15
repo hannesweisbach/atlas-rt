@@ -126,6 +126,8 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
   {
     if (bin_count == 0) {
       bins.push_back(std::make_pair(p_min, p_max));
+    } else if (bin_count == 1) {
+      bins.front() = std::make_pair(p_min, p_max);
     } else {
       auto upper = p_min * 10;
       bins.front() = std::make_pair(p_min, upper);
