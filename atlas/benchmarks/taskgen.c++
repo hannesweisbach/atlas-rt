@@ -108,6 +108,13 @@ static decltype(auto) draw_from(const bin_t &bin) {
   return draw_from(bin.first.count(), bin.second.count());
 }
 
+static auto generate_period() {
+  static constexpr std::array<int64_t, 25> periods{
+      {16, 24, 32, 36, 48, 24, 36, 48, 54, 72, 32, 48, 64, 72, 96, 36, 54, 72,
+       81, 108, 48, 72, 96, 108, 144}};
+  return period{periods[draw_from(0UL, periods.size() - 1)]};
+}
+
 template <typename Rep, typename Res>
 auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
                        const utilization<Rep, Res> umax, const period &p_min,
@@ -158,7 +165,12 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
       std::begin(utilizations),
       std::begin(utilizations) + static_cast<long>(all), std::begin(ts),
       [&bins, &i](const auto &u) {
+#define COOKED_PERIODS
+#ifdef COOKED_PERIODS
+        const auto p = generate_period();
+#else
         const auto p = period{draw_from(bins.at(i++ % bins.size()))};
+#endif
         // period [us] * utilization [milli] -> execution time [ns]
         const auto e = execution_time{duration_cast<microseconds>(p).count() *
                                       u.utilization};
@@ -167,8 +179,12 @@ auto generate_taskset_(const size_t n, const utilization<Rep, Res> usum,
 
   std::transform(std::begin(utilizations) + static_cast<long>(all),
                  std::end(utilizations), next, [&bins](const auto &u) {
+#ifdef COOKED_PERIODS
+                   const auto p = generate_period();
+#else
                    const auto bin = draw_from(0U, bins.size() - 1);
                    const auto p = period{draw_from(bins.at(bin))};
+#endif
                    const auto e = execution_time{
                        duration_cast<microseconds>(p).count() * u.utilization};
                    return task_attr{e, p, u};
