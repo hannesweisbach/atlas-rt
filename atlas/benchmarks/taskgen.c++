@@ -15,14 +15,21 @@ template <typename Rep, typename Res>
 static auto uunisort(size_t n, utilization<Rep, Res> usum,
                      const utilization<Rep, Res> umax) {
   std::vector<utilization<Rep, Res>> utilizations(n);
-  
-  for(; n > 1; --n) {
-    auto ulower = usum - static_cast<long>(n - 1) * umax;
-    auto uupper = std::min(usum, umax);
-    std::uniform_int_distribution<Rep> distribution(
-        std::max(ulower.utilization, 1L), uupper.utilization);
+  using U = utilization<Rep, Res>;
+
+  for (; n > 1; --n) {
+    auto ulower = std::max(usum - static_cast<long>(n - 1) * umax, U{1});
+    auto uupper = std::min(usum - U{static_cast<long>(n - 1)}, umax);
+    std::uniform_int_distribution<Rep> distribution(ulower.utilization,
+                                                    uupper.utilization);
     auto u = utilization<Rep, Res>{distribution(generator)};
+
     usum -= u;
+#if 0
+    std::cout << n << " [" << ulower.utilization << ", " << uupper.utilization
+              << "] -> " << u.utilization << ", " << usum.utilization
+              << std::endl;
+#endif
     utilizations.at(n - 1) = u;
   }
 
