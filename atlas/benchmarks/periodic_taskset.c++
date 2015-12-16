@@ -47,26 +47,22 @@ static auto do_work(const execution_time &e) {
 #pragma clang diagnostic pop
 
   if (e <= execution_time{0}) {
-    return reset_deadline() ? EXIT_FAILURE : EXIT_SUCCESS;
+    return;
   }
 
   auto start = cputime_clock::now();
 
   for (size_t i = 0; i < static_cast<size_t>(e / work_unit); ++i) {
-    if (reset_deadline())
-      return EXIT_FAILURE;
     if (strstr(haystack.c_str(), "test"))
       std::cerr << "Found." << std::endl;
   }
 
   const auto remaining = e - (cputime_clock::now() - start);
   if (remaining <= 0s)
-    return EXIT_SUCCESS;
+    return;
 
   for (size_t i = 0; i < static_cast<size_t>(remaining / small_work_unit);
        ++i) {
-    if (reset_deadline())
-      return EXIT_FAILURE;
     if (strstr(small_haystack.c_str(), "test"))
       std::cerr << "Found." << std::endl;
   }
@@ -81,16 +77,12 @@ static auto do_work(const execution_time &e) {
 #endif
 #if 1
   for (; small_work_unit < e - (cputime_clock::now() - start);) {
-    if (reset_deadline())
-      return EXIT_FAILURE;
     if (strstr(small_haystack.c_str(), "test"))
       std::cerr << "Found." << std::endl;
   }
 #if 1
 #endif
 #endif
-
-  return EXIT_SUCCESS;
 }
 
 class periodic_taskset {
@@ -99,13 +91,13 @@ class periodic_taskset {
     pid_t tid;
     mutable std::atomic_bool init{false};
     mutable std::atomic_bool done{false};
+    mutable std::atomic<uint64_t> deadline_misses{0};
   };
 
   std::vector<task> tasks;
   std::unique_ptr<std::thread[]> threads;
 
   hyperperiod_t hyperperiod;
-  std::atomic_bool deadline_miss{false};
   std::atomic_bool stop{false};
 
   auto run(const size_t i) {
@@ -114,20 +106,21 @@ class periodic_taskset {
     record_deadline_misses();
 
     task.init = true;
-    for (auto job = 0; job < jobs && !deadline_miss && !stop; ++job) {
+    for (auto job = 0; job < jobs && !stop; ++job) {
       uint64_t id;
       atlas::next(id);
 
       using namespace std::chrono;
 #if 1
-      if (do_work(task.attr.e - 500us) == EXIT_FAILURE) {
+      do_work(task.attr.e - 500us);
 #else
       /* activate for minimum execution time mode */
-      if (do_work(1ms) == EXIT_FAILURE) {
+      do_work(1ms);
 #endif
+      if (reset_deadline()) {
+        ++task.deadline_misses;
         std::cerr << "Task " << task.attr << " failed on job " << job << "/"
                   << jobs << "." << std::endl;
-        deadline_miss = true;
       }
     }
 
@@ -212,21 +205,14 @@ public:
       }
 
       std::sort(std::begin(releases), std::end(releases));
-      if (deadline_miss) {
-        struct sched_param param;
-        param.sched_priority = sched_get_priority_max(SCHED_OTHER);
-        if (sched_setscheduler(0, SCHED_OTHER, &param)) {
-          std::cerr << "Error setting scheduler (" << errno
-                    << "): " << strerror(errno) << std::endl;
-          exit(EXIT_FAILURE);
-        }
-        break;
-      }
       std::this_thread::sleep_until(releases.front().r);
     }
 
     synchronize_end();
-    return deadline_miss;
+    return std::accumulate(std::begin(tasks), std::end(tasks), 0UL,
+                           [](const auto &sum, const auto &task) {
+                             return sum + task.deadline_misses;
+                           });
   }
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -273,10 +259,7 @@ static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
 
   for (size_t j = 0; j < count; ++j) {
     periodic_taskset ts(tasks, u_sum, u_max, pmin, pmax);
-    if (ts.simulate()) {
-      ++failures;
-      std::cerr << "TS failed: " << ts << std::endl;
-    }
+    failures += ts.simulate();
     std::cerr << ".";
     std::cerr.flush();
   }
