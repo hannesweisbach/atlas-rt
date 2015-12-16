@@ -250,6 +250,25 @@ static void find_minimum_e(const size_t count, const period p) {
   }
 }
 
+static void duration(const size_t tasks, const U u_sum, const U u_max,
+                     const size_t count, const period pmin, const period pmax,
+                     const hyperperiod_t limit) {
+  using namespace std::chrono;
+
+  hyperperiod_t duration{0};
+  for (size_t j = 0; j < count; ++j) {
+    const auto attr = generate_taskset(tasks, u_sum, u_max, pmin, pmax);
+    const auto hp = ::hyperperiod(attr);
+    if (limit != hyperperiod_t{0} && hp > limit) {
+      --j;
+      continue;
+    }
+    duration += hp;
+  }
+
+  std::cout << duration_cast<s>(duration).count() << std::endl;
+}
+
 static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
                           const size_t count, const period pmin,
                           const period pmax, const bool preroll = true) {
@@ -280,6 +299,7 @@ int main(int argc, char *argv[]) {
   int64_t umax;
   int64_t pmin;
   int64_t pmax;
+  int64_t limit;
 
   // clang-format off
   desc.add_options()
@@ -297,7 +317,11 @@ int main(int argc, char *argv[]) {
      "Minimum period of any task. (Default: 10ms)")
     ("max-period", po::value(&pmax)->default_value(100),
      "Maximum period of any task. (Default: 100ms)")
-    ("no-preroll", "Disable preroll (Default: on)");
+    ("no-preroll", "Disable preroll (Default: on)")
+    ("duration",
+     "Experiment duration for task sets with current parameters.")
+    ("limit", po::value(&limit)->default_value(0),
+     "Limit the hyperperiod to <num> seconds. (Default: 0, off)");
   // clang-format on
 
   po::variables_map vm;
@@ -311,6 +335,12 @@ int main(int argc, char *argv[]) {
 
   if (vm.count("exectime")) {
     find_minimum_e(count, period{pmin});
+    return EXIT_SUCCESS;
+  }
+
+  if (vm.count("duration")) {
+    ::duration(tasks, U{usum}, U{umax}, count, period{pmin}, period{pmax},
+               s{limit});
     return EXIT_SUCCESS;
   }
 
