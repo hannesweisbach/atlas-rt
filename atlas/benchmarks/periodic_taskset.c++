@@ -209,6 +209,18 @@ public:
     }
 
     synchronize_end();
+
+    {
+      /* This seems necessary, since forking from FIFO threads seems broken. */
+      struct sched_param param;
+      param.sched_priority = sched_get_priority_min(SCHED_OTHER);
+      if (sched_setscheduler(0, SCHED_OTHER, &param)) {
+        std::cerr << "Error setting scheduler (" << errno
+                  << "): " << strerror(errno) << std::endl;
+        exit(EXIT_FAILURE);
+      }
+    }
+
     return std::accumulate(std::begin(tasks), std::end(tasks), 0UL,
                            [](const auto &sum, const auto &task) {
                              return sum + task.deadline_misses;
