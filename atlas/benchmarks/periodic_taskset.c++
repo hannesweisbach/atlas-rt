@@ -417,7 +417,7 @@ static void find_minimum_e(const size_t count, const period p,
   }
 }
 
-static void duration(const size_t tasks, const U u_sum, const U u_max,
+static auto duration(const size_t tasks, const U u_sum, const U u_max,
                      const size_t count, const period pmin, const period pmax,
                      const hyperperiod_t limit) {
   using namespace std::chrono;
@@ -433,7 +433,7 @@ static void duration(const size_t tasks, const U u_sum, const U u_max,
     duration += hp;
   }
 
-  std::cout << duration_cast<s>(duration).count() << std::endl;
+  return duration;
 }
 
 static auto schedulable(const size_t tasks, const U u_sum, const U u_max,
@@ -516,8 +516,14 @@ int main(int argc, char *argv[]) {
   }
 
   if (vm.count("duration")) {
-    ::duration(tasks, U{usum}, U{umax}, count, period{pmin}, period{pmax},
-               s{limit});
+    hyperperiod_t duration{0};
+
+    for (size_t task = tasks.front(); task <= tasks.back(); ++task) {
+      duration += ::duration(task, U{usum}, U{umax}, count, period{pmin},
+                             period{pmax}, s{limit});
+    }
+
+    std::cout << duration_cast<s>(duration).count() << std::endl;
     return EXIT_SUCCESS;
   }
 
