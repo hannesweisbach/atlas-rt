@@ -85,13 +85,33 @@ static auto do_work(const execution_time &e) {
 #endif
 }
 
+struct result {
+  int64_t jobs{0};
+  int64_t missed{0};
+
+  result operator+(const result &rhs) {
+    return result{jobs + rhs.jobs, missed + rhs.missed};
+  }
+
+  result &operator+=(const result &rhs) {
+    jobs += rhs.jobs;
+    missed += rhs.missed;
+    return *this;
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const result &rhs) {
+    return os << rhs.missed << " " << rhs.jobs;
+  }
+};
+
 class periodic_taskset {
   struct task {
     task_attr attr;
     pid_t tid;
+    int64_t jobs;
+    mutable std::atomic<uint64_t> deadline_misses{0};
     mutable std::atomic_bool init{false};
     mutable std::atomic_bool done{false};
-    mutable std::atomic<uint64_t> deadline_misses{0};
   };
 
   std::vector<task> tasks;
@@ -147,6 +167,7 @@ public:
     hyperperiod = ::hyperperiod(attr);
     for (size_t i = 0; i < n; ++i) {
       tasks.at(i).attr = attr.at(i);
+      task.jobs = hyperperiod / task.attr.p;
     }
 
     for (size_t i = 0; i < n; ++i) {
@@ -155,7 +176,17 @@ public:
     }
   }
 
-  bool simulate() {
+  auto result() {
+    struct result r;
+    for (const auto &task : tasks) {
+      r.jobs += task.jobs;
+      r.missed += task.deadline_misses;
+    }
+
+    return r;
+  }
+
+  void simulate() {
     using namespace std::chrono;
     struct release {
       steady_clock::time_point r;
@@ -220,11 +251,6 @@ public:
         exit(EXIT_FAILURE);
       }
     }
-
-    return std::accumulate(std::begin(tasks), std::end(tasks), 0UL,
-                           [](const auto &sum, const auto &task) {
-                             return sum + task.deadline_misses;
-                           });
   }
 
   friend std::ostream &operator<<(std::ostream &os,
@@ -248,9 +274,12 @@ static void find_minimum_e(const size_t count, const period p) {
     data.emplace_back(u, 0);
     for (size_t j = 0; j < count; ++j) {
       periodic_taskset ts(1, u, u, p, p);
-      if (ts.simulate()) {
+      ts.simulate();
+      if (ts.result().missed) {
         ++data.back().second;
       }
+
+      std::this_thread::sleep_for(1ms);
     }
     std::cerr << std::setw(5) << data.back().second << std::endl;
   }
@@ -285,11 +314,12 @@ static auto schedulable(const size_t tasks, const U u_sum, const U u_max,
                         const size_t count, const period pmin,
                         const period pmax) {
   using namespace std::chrono;
-  size_t failures = 0;
+  result failures;
 
   for (size_t j = 0; j < count; ++j) {
     periodic_taskset ts(tasks, u_sum, u_max, pmin, pmax);
-    failures += ts.simulate();
+    ts.simulate();
+    failures += ts.result();
     std::cerr << ".";
     std::cerr.flush();
   }
