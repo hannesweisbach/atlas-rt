@@ -460,7 +460,7 @@ int main(int argc, char *argv[]) {
   po::options_description desc(
       "Generate and execute periodic task sets on atlas.");
 
-  size_t tasks;
+  std::vector<size_t> tasks;
   size_t count;
   int64_t usum;
   int64_t umax;
@@ -471,7 +471,7 @@ int main(int argc, char *argv[]) {
   // clang-format off
   desc.add_options()
     ("help", "Produce help message")
-    ("tasks", po::value(&tasks)->default_value(2),
+    ("tasks", po::value(&tasks)->multitoken(),
      "Number of tasks in the task set. (Default: 1)")
     ("count", po::value(&count)->default_value(1000),
      "Number of task sets to generate. (Default: 1000)")
@@ -507,6 +507,9 @@ int main(int argc, char *argv[]) {
   set_procfsparam(attribute::overload_push, vm.count("overload-push"));
   set_procfsparam(attribute::preroll, !vm.count("no-preroll"));
 
+  if (tasks.empty())
+    tasks.push_back(2);
+
   if (vm.count("exectime")) {
     find_minimum_e(count, period{pmin}, vm.count("edf"));
     return EXIT_SUCCESS;
@@ -518,7 +521,7 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
-  for (size_t task = 2; task <= tasks; ++task) {
+  for (size_t task = tasks.front(); task <= tasks.back(); ++task) {
     auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
                                 period{pmax}, vm.count("edf"));
   }
