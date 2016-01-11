@@ -5,12 +5,17 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
 
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
 
 #include <sched.h>
+#include <linux/unistd.h>
+#include <linux/kernel.h>
+#include <linux/types.h>
 
 #include <boost/math/common_factor_rt.hpp>
 #include <boost/program_options.hpp>
@@ -19,6 +24,36 @@
 #include "common/common.h"
 
 #include "taskgen.h"
+
+#define SCHED_DEADLINE	6
+
+struct sched_attr {
+  __u32 size;
+
+  __u32 sched_policy;
+  __u64 sched_flags;
+
+  /* SCHED_NORMAL, SCHED_BATCH */
+  __s32 sched_nice;
+
+  /* SCHED_FIFO, SCHED_RR */
+  __u32 sched_priority;
+
+  /* SCHED_DEADLINE (nsec) */
+  __u64 sched_runtime;
+  __u64 sched_deadline;
+  __u64 sched_period;
+};
+
+static decltype(auto) sched_setattr(pid_t pid, const struct sched_attr *attr,
+                                    unsigned int flags) {
+  return syscall(__NR_sched_setattr, pid, attr, flags);
+}
+
+static decltype(auto) sched_getattr(pid_t pid, struct sched_attr *attr,
+                                    unsigned int size, unsigned int flags) {
+  return syscall(__NR_sched_getattr, pid, attr, size, flags);
+}
 
 static auto hyperperiod(const std::vector<task_attr> &tasks) {
   auto counts = std::accumulate(
@@ -110,8 +145,78 @@ class periodic_taskset {
     pid_t tid;
     int64_t jobs;
     mutable std::atomic<uint64_t> deadline_misses{0};
+    mutable std::mutex lock;
+    mutable std::condition_variable cv;
+    mutable uint64_t count = 0;
+    mutable std::chrono::steady_clock::time_point deadline;
+    bool edf;
     mutable std::atomic_bool init{false};
     mutable std::atomic_bool done{false};
+
+    auto submit(uint64_t id, std::chrono::steady_clock::time_point d) const {
+      auto dl = d + attr.p;
+      if (edf) {
+        std::lock_guard<std::mutex> l(lock);
+        ++count;
+        deadline = dl;
+        cv.notify_one();
+      } else {
+        atlas::submit(tid, id, attr.e, dl);
+      }
+      return dl;
+    }
+
+    auto next_edf() const {
+      using namespace std::chrono;
+      steady_clock::time_point dl;
+
+      {
+        std::unique_lock<std::mutex> l(lock);
+        cv.wait(l, [this] { return count; });
+        --count;
+        dl = deadline;
+      }
+//#define MEASURE_OVERHEAD
+#ifndef MEASURE_OVERHEAD
+      do_work(attr.e - 100us);
+#else
+      do_work(1ms);
+#endif
+
+      return std::chrono::steady_clock::now() > dl;
+    }
+
+    auto next_atlas() const {
+      using namespace std::chrono;
+      uint64_t id;
+      atlas::next(id);
+
+#ifndef MEASURE_OVERHEAD
+      do_work(attr.e - 200us);
+#else
+      do_work(1ms);
+#endif
+
+      return reset_deadline();
+    }
+
+    auto next(const int64_t job) const {
+      bool missed = false;
+
+      if (edf) {
+        missed = next_edf();
+      } else {
+        missed = next_atlas();
+      }
+
+      if (missed) {
+        ++deadline_misses;
+#if 0
+        std::cerr << "Task " << tid << " " << attr << " failed on job " << job
+                  << "/" << jobs << "." << std::endl;
+#endif
+      }
+    }
   };
 
   std::vector<task> tasks;
@@ -121,29 +226,50 @@ class periodic_taskset {
   std::atomic_bool stop{false};
 
   auto run(const size_t i) {
+    using namespace std::chrono;
     const task &task = tasks.at(i);
-    const auto jobs = hyperperiod / task.attr.p;
-    record_deadline_misses();
 
-    task.init = true;
-    for (auto job = 0; job < jobs && !stop; ++job) {
-      uint64_t id;
-      atlas::next(id);
+    if (task.edf) {
+      struct sched_attr attr;
 
-      using namespace std::chrono;
-#if 1
-      do_work(task.attr.e - 500us);
-#else
-      /* activate for minimum execution time mode */
-      do_work(1ms);
-#endif
-      if (reset_deadline()) {
-        ++task.deadline_misses;
-        std::cerr << "Task " << task.attr << " failed on job " << job << "/"
-                  << jobs << "." << std::endl;
+      attr.size = sizeof(attr);
+      attr.sched_flags = 0;
+      attr.sched_nice = 0;
+      attr.sched_priority = 0;
+
+      attr.sched_policy = SCHED_DEADLINE;
+      attr.sched_runtime =
+          static_cast<__u64>(duration_cast<nanoseconds>(task.attr.e).count());
+      attr.sched_period = attr.sched_deadline =
+          static_cast<__u64>(duration_cast<nanoseconds>(task.attr.p).count());
+
+      auto ret = sched_setattr(0, &attr, 0);
+      if (ret < 0) {
+        // std::cerr << "Error setting scheduler (" << errno
+        //          << "): " << strerror(errno) << std::endl;
+
+        //exit(EXIT_FAILURE);
       }
+    } else {
+      record_deadline_misses();
     }
 
+    task.init = true;
+
+    for (int64_t job = 0; job < task.jobs && !stop; ++job) {
+      task.next(job);
+    }
+
+#if 1
+    if (task.edf) {
+      struct sched_param param;
+      param.sched_priority = sched_get_priority_min(SCHED_OTHER);
+      if (sched_setscheduler(0, SCHED_OTHER, &param)) {
+        std::cerr << "Error setting scheduler (" << errno
+                  << "): " << strerror(errno) << std::endl;
+      }
+    }
+#endif
     task.done = true;
   }
 
@@ -151,7 +277,7 @@ class periodic_taskset {
     using namespace std::chrono;
     stop = true;
     for (size_t i = 0; i < tasks.size(); ++i) {
-      if (!tasks.at(i).done) {
+      if (!tasks.at(i).done && !tasks.at(i).edf) {
         atlas::np::submit(threads[i], 0, 1s, 2s);
       }
       if (threads[i].joinable()) {
@@ -161,18 +287,23 @@ class periodic_taskset {
   }
 
 public:
-  periodic_taskset(const size_t n, U usum, U umax, period p_min, period p_max)
+  periodic_taskset(const size_t n, U usum, U umax, period p_min, period p_max,
+                   const bool edf = false)
       : tasks(n), threads(std::make_unique<std::thread[]>(n)) {
     const auto attr = generate_taskset(n, usum, umax, p_min, p_max);
     hyperperiod = ::hyperperiod(attr);
     for (size_t i = 0; i < n; ++i) {
-      tasks.at(i).attr = attr.at(i);
+      auto &task = tasks.at(i);
+      task.attr = attr.at(i);
+      task.edf = edf;
       task.jobs = hyperperiod / task.attr.p;
     }
 
     for (size_t i = 0; i < n; ++i) {
       threads[i] = std::thread(&periodic_taskset::run, this, i);
       tasks.at(i).tid = atlas::np::from(threads[i]);
+      while (!tasks.at(i).init)
+        ;
     }
   }
 
@@ -190,9 +321,7 @@ public:
     using namespace std::chrono;
     struct release {
       steady_clock::time_point r;
-      execution_time e;
-      period p;
-      pid_t tid;
+      task * t;
       size_t count;
 
       bool operator<(const release &rhs) { return r < rhs.r; }
@@ -220,18 +349,14 @@ public:
       auto &task = tasks.at(i);
 
       release.r = t0;
-      release.e = task.attr.e;
-      release.p = task.attr.p;
-      release.tid = atlas::np::from(threads[i]);
+      release.t = &task;
     }
 
     for (; steady_clock::now() <= t0 + hyperperiod;) {
       for (auto &&release : releases) {
         if (release.r <= steady_clock::now()) {
-          atlas::submit(release.tid, release.count, release.e,
-                        release.r + release.p);
+          release.r = release.t->submit(release.count, release.r);
           ++release.count;
-          release.r += release.p;
         }
       }
 
@@ -262,7 +387,8 @@ public:
   }
 };
 
-static void find_minimum_e(const size_t count, const period p) {
+static void find_minimum_e(const size_t count, const period p,
+                           const bool edf = false) {
   using namespace std::chrono;
   std::vector<std::pair<U, size_t>> data;
 
@@ -273,7 +399,7 @@ static void find_minimum_e(const size_t count, const period p) {
     std::cerr.flush();
     data.emplace_back(u, 0);
     for (size_t j = 0; j < count; ++j) {
-      periodic_taskset ts(1, u, u, p, p);
+      periodic_taskset ts(1, u, u, p, p, edf);
       ts.simulate();
       if (ts.result().missed) {
         ++data.back().second;
@@ -312,12 +438,12 @@ static void duration(const size_t tasks, const U u_sum, const U u_max,
 
 static auto schedulable(const size_t tasks, const U u_sum, const U u_max,
                         const size_t count, const period pmin,
-                        const period pmax) {
+                        const period pmax, const bool edf = false) {
   using namespace std::chrono;
   result failures;
 
   for (size_t j = 0; j < count; ++j) {
-    periodic_taskset ts(tasks, u_sum, u_max, pmin, pmax);
+    periodic_taskset ts(tasks, u_sum, u_max, pmin, pmax, edf);
     ts.simulate();
     failures += ts.result();
     std::cerr << ".";
@@ -364,7 +490,8 @@ int main(int argc, char *argv[]) {
     ("duration",
      "Experiment duration for task sets with current parameters.")
     ("limit", po::value(&limit)->default_value(0),
-     "Limit the hyperperiod to <num> seconds. (Default: 0, off)");
+     "Limit the hyperperiod to <num> seconds. (Default: 0, off)")
+    ("edf", "Use Linux' SCHED_DEADLINE.");
   // clang-format on
 
   po::variables_map vm;
@@ -381,7 +508,7 @@ int main(int argc, char *argv[]) {
   set_procfsparam(attribute::preroll, !vm.count("no-preroll"));
 
   if (vm.count("exectime")) {
-    find_minimum_e(count, period{pmin});
+    find_minimum_e(count, period{pmin}, vm.count("edf"));
     return EXIT_SUCCESS;
   }
 
@@ -393,6 +520,6 @@ int main(int argc, char *argv[]) {
 
   for (size_t task = 2; task <= tasks; ++task) {
     auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
-                                period{pmax});
+                                period{pmax}, vm.count("edf"));
   }
 }
