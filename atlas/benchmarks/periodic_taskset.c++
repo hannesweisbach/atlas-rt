@@ -534,5 +534,8 @@ int main(int argc, char *argv[]) {
     }
     auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
                                 period{pmax}, vm.count("edf"));
+    std::cout << failures << std::endl;
+    std::cerr << failures << " deadline misses with " << task << " tasks "
+              << std::endl;
   }
 }
