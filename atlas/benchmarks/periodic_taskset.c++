@@ -281,12 +281,11 @@ static void duration(const size_t tasks, const U u_sum, const U u_max,
   std::cout << duration_cast<s>(duration).count() << std::endl;
 }
 
-static size_t schedulable(const size_t tasks, const U u_sum, const U u_max,
-                          const size_t count, const period pmin,
-                          const period pmax, const bool preroll = true) {
+static auto schedulable(const size_t tasks, const U u_sum, const U u_max,
+                        const size_t count, const period pmin,
+                        const period pmax) {
   using namespace std::chrono;
   size_t failures = 0;
-  set_procfsparam(attribute::preroll, preroll);
 
   for (size_t j = 0; j < count; ++j) {
     periodic_taskset ts(tasks, u_sum, u_max, pmin, pmax);
@@ -330,6 +329,8 @@ int main(int argc, char *argv[]) {
     ("max-period", po::value(&pmax)->default_value(100),
      "Maximum period of any task. (Default: 100ms)")
     ("no-preroll", "Disable preroll (Default: on)")
+    ("idle-pull", "Enable idle-pull (Default: off)")
+    ("overload-push", "Enable overload-push (Default: off)")
     ("duration",
      "Experiment duration for task sets with current parameters.")
     ("limit", po::value(&limit)->default_value(0),
@@ -345,6 +346,10 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
+  set_procfsparam(attribute::job_stealing, vm.count("idle-pull"));
+  set_procfsparam(attribute::overload_push, vm.count("overload-push"));
+  set_procfsparam(attribute::preroll, !vm.count("no-preroll"));
+
   if (vm.count("exectime")) {
     find_minimum_e(count, period{pmin});
     return EXIT_SUCCESS;
@@ -358,6 +363,6 @@ int main(int argc, char *argv[]) {
 
   for (size_t task = 2; task <= tasks; ++task) {
     auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
-                                period{pmax}, !vm.count("no-preroll"));
+                                period{pmax});
   }
 }
