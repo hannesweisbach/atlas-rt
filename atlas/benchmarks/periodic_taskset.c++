@@ -528,6 +528,10 @@ int main(int argc, char *argv[]) {
   }
 
   for (size_t task = tasks.front(); task <= tasks.back(); ++task) {
+    if (static_cast<int64_t>(task) * umax < usum) {
+      std::cout << "nan nan" << std::endl;
+      continue;
+    }
     auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
                                 period{pmax}, vm.count("edf"));
   }
