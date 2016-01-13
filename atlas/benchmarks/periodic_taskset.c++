@@ -55,17 +55,6 @@ static decltype(auto) sched_getattr(pid_t pid, struct sched_attr *attr,
   return syscall(__NR_sched_getattr, pid, attr, size, flags);
 }
 
-static auto hyperperiod(const std::vector<task_attr> &tasks) {
-  auto counts = std::accumulate(
-      std::begin(tasks), std::end(tasks), hyperperiod_t::rep{1},
-      [](const auto &hp, const auto &task) {
-        return boost::math::lcm(
-            hp, std::chrono::duration_cast<hyperperiod_t>(task.p).count());
-      });
-
-  return hyperperiod_t{counts};
-}
-
 static auto do_work(const execution_time &e) {
   using namespace std::chrono;
   static constexpr execution_time work_unit{100us};

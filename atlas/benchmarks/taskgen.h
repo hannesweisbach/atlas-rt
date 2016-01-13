@@ -94,4 +94,5 @@ task_set generate_taskset(const size_t n, const double u,
 std::vector<task_attr> generate_taskset(const size_t n, U usum, U umax,
                                         const period &p_min,
                                         const period &p_max);
+hyperperiod_t hyperperiod(const std::vector<task_attr> &tasks);
 

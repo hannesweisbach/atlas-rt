@@ -249,3 +249,15 @@ int main() {
 
 }
 #endif
+
+hyperperiod_t hyperperiod(const std::vector<task_attr> &tasks) {
+  auto counts = std::accumulate(
+      std::begin(tasks), std::end(tasks), hyperperiod_t::rep{1},
+      [](const auto &hp, const auto &task) {
+        return boost::math::lcm(
+            hp, std::chrono::duration_cast<hyperperiod_t>(task.p).count());
+      });
+
+  return hyperperiod_t{counts};
+}
+
