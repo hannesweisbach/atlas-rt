@@ -53,7 +53,7 @@ overallocation(std::chrono::nanoseconds prediction) {
 struct estimator_ctx {
   uint64_t type;
   size_t count;
-  llsp llsp;
+  class llsp llsp;
 
   struct job {
     uint64_t id;
