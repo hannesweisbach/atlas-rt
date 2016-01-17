@@ -1,5 +1,8 @@
 project(ATLAS-rt)
 cmake_minimum_required(VERSION 2.8)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Weverything")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat")
@@ -12,6 +15,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 find_library(BLOCKSRUNTIME_FOUND BlocksRuntime)
+find_package(GMP REQUIRED)
 
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
