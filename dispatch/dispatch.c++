@@ -9,6 +9,7 @@
 #include <sys/syscall.h>
 #include <csignal>
 #include <cerrno>
+#include <cstring>
 
 #include "predictor/predictor.h"
 #include "atlas/atlas.h"
@@ -58,145 +59,327 @@ static void ignore_deadlines() {
 #if defined(__GNU_LIBRARY__) && defined(__clang__)
 #pragma clang diagnostic pop
 #endif
-  if(sigaction(SIGXCPU, &act, nullptr)) {
+  if (sigaction(SIGXCPU, &act, nullptr)) {
     throw std::runtime_error("Error " + std::to_string(errno) + " " +
                              strerror(errno));
   }
 }
 }
 
+struct work_item {
+  std::chrono::steady_clock::time_point deadline;
+  std::chrono::microseconds prediction;
+  const double *metrics;
+  size_t metrics_count;
+  uint64_t type;
+  std::function<void()> work;
+  std::shared_ptr<std::promise<void>> completion;
+  bool is_realtime;
+};
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wweak-vtables"
+class executor {
+#pragma clang diagnostic pop
+public:
+  virtual ~executor() = default;
+  virtual void enqueue(work_item) const = 0;
+};
+
 struct dispatch_queue::impl {
-  struct work_item {
-    std::chrono::steady_clock::time_point deadline;
-    std::chrono::microseconds prediction;
-    const double *metrics;
-    size_t metrics_count;
-    uint64_t type;
-    std::function<void()> work;
-    std::shared_ptr<std::promise<void>> completion;
-    bool is_realtime;
-  };
+  uint32_t magic = 0x61746C73; // 'atls'
+  std::string label_;
+  std::unique_ptr<executor> worker;
 
+  impl(dispatch_queue *queue, std::string label);
+  impl(dispatch_queue *queue, std::string label, std::vector<int> cpu_set);
+  void dispatch(work_item item) const { worker->enqueue(std::move(item)); }
+};
 
-  class queue_worker {
-    mutable std::condition_variable empty;
-    mutable std::mutex list_lock;
-    mutable std::list<work_item> work_queue;
-    atlas::estimator *estimator;
-    std::thread thread;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wweak-vtables"
+class queue_worker final : public executor {
+#pragma clang diagnostic pop
+  mutable std::condition_variable empty;
+  mutable std::mutex list_lock;
+  mutable std::list<work_item> work_queue;
+  std::thread thread;
 
-    bool done = false;
-    void process_work(dispatch_queue *queue, std::promise<pid_t> promise) {
-      ignore_deadlines();
-      current_queue = queue;
-      promise.set_value(gettid());
+  bool done = false;
 
-      while (!done) {
-        std::list<work_item> tmp;
-        {
-          std::unique_lock<std::mutex> lock(list_lock);
-          empty.wait(lock, [=] { return !work_queue.empty(); });
+  void process_work(dispatch_queue *queue) {
+    ignore_deadlines();
+    current_queue = queue;
+
+    while (!done) {
+      std::list<work_item> tmp;
+      {
+        std::unique_lock<std::mutex> lock(list_lock);
+        empty.wait(lock, [=] { return !work_queue.empty(); });
+        if (!tmp.front().is_realtime) {
           tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
         }
+      }
 
-        work_item &work = tmp.front();
-
-        if (work.is_realtime)
-          next();
-
-        auto start = cputime_clock::now();
-
-        try {
-          work.work();
-          work.completion->set_value();
-        } catch (...) {
-          work.completion->set_exception(std::current_exception());
+      if (tmp.empty()) {
+        uint64_t id;
+        work_item *ptr;
+        next(id);
+        static_assert(sizeof(id) == sizeof(ptr),
+                      "Types must be of equal size.");
+        memcpy(&ptr, &id, sizeof(id));
+        // TODO: lock queue.
+        auto it =
+            std::find_if(work_queue.cbegin(), work_queue.cend(),
+                         [ptr](const auto &work) { return &work == ptr; });
+        if (it == work_queue.cend()) {
+          throw std::runtime_error("Work item not found.");
         }
 
+        tmp.splice(tmp.cbegin(), work_queue, it);
+      }
+
+      work_item &work = tmp.front();
+
+      try {
+        auto start = cputime_clock::now();
+        work.work();
         auto end = cputime_clock::now();
 
-        //TODO do not train, if exception occured. Remove instead.
+        work.completion->set_value();
+
         if (work.is_realtime) {
           using namespace std::chrono;
           const auto exectime = end - start;
           const uint64_t id = reinterpret_cast<uint64_t>(&work);
-          estimator->train(work.type, id,
-                           duration_cast<microseconds>(exectime));
+          try {
+            application_estimator.train(work.type, id,
+                                        duration_cast<microseconds>(exectime));
+          } catch (const std::runtime_error &e) {
+            std::cerr << e.what() << std::endl;
+            std::terminate();
+          }
         }
-      };
-    }
-
-  public:
-    queue_worker(dispatch_queue *queue, atlas::estimator *estimator_,
-                 std::promise<pid_t> promise)
-        : estimator(estimator_),
-          thread(&queue_worker::process_work, this, queue, std::move(promise)) {
-    }
-    ~queue_worker() {
-      using namespace std::literals::chrono_literals;
-      enqueue({{},
-               0us,
-               nullptr,
-               0,
-               0,
-               [=] { done = true; },
-               std::make_shared<std::promise<void>>(),
-               false});
-      if (thread.joinable())
-        thread.join();
-    }
-
-    void enqueue(work_item work) const {
-      std::list<work_item> tmp;
-      tmp.push_back(std::move(work));
-
-      {
-        auto &item = tmp.front();
-        const uint64_t id = reinterpret_cast<uint64_t>(&item);
-        if (item.is_realtime) {
-          const auto exectime = estimator->predict(item.type, id, item.metrics,
-                                                   item.metrics_count);
-          np::submit(thread, id, exectime, work.deadline);
-        } else {
-          using namespace std::literals::chrono_literals;
-          np::submit(thread, id, 0s, work.deadline);
-        }
+      } catch (...) {
+        work.completion->set_exception(std::current_exception());
       }
+    };
+  }
 
-      {
-        std::lock_guard<std::mutex> lock(list_lock);
-        work_queue.splice(work_queue.end(), tmp);
+public:
+  queue_worker(dispatch_queue *queue)
+      : thread(&queue_worker::process_work, this, queue) {}
+  ~queue_worker() {
+    using namespace std::literals::chrono_literals;
+    enqueue({{},
+             0us,
+             nullptr,
+             0,
+             0,
+             [=] { done = true; },
+             std::make_shared<std::promise<void>>(),
+             false});
+    if (thread.joinable())
+      thread.join();
+  }
+
+  void enqueue(work_item work) const override {
+    std::list<work_item> tmp;
+    tmp.push_back(std::move(work));
+
+    {
+      auto &item = tmp.front();
+      const uint64_t id = reinterpret_cast<uint64_t>(&item);
+      if (item.is_realtime) {
+        const auto exectime = application_estimator.predict(
+            item.type, id, item.metrics, item.metrics_count);
+        np::submit(thread, id, exectime, work.deadline);
+      } else {
+        // using namespace std::literals::chrono_literals;
+        // np::submit(thread, id, 0s, work.deadline);
       }
-
-      empty.notify_one();
     }
-  };
 
-  struct worker {
-    pid_t tid;
-    std::unique_ptr<std::thread> t;
-  };
-  uint32_t magic = 0x61746C73; // 'atls'
-  std::string label_;
-  std::unique_ptr<queue_worker> worker;
+    {
+      std::lock_guard<std::mutex> lock(list_lock);
+      work_queue.splice(work_queue.end(), tmp);
+    }
 
-  impl(dispatch_queue *queue, std::string label) : label_(std::move(label)) {
-    std::promise<pid_t> promise;
-    auto fut = promise.get_future();
-    worker = std::make_unique<queue_worker>(queue, &application_estimator,
-                                            std::move(promise));
-    fut.get();
+    empty.notify_one();
   }
-  impl(dispatch_queue *queue, std::string label, std::vector<int> cpu_set)
-      : label_(std::move(label)) {
-    std::promise<pid_t> promise;
-    auto fut = promise.get_future();
-    worker = std::make_unique<queue_worker>(queue, &application_estimator,
-                                            std::move(promise));
-    fut.get();
-  }
-  void dispatch(work_item item) const { worker->enqueue(std::move(item)); }
 };
+
+class pool {
+  uint64_t id = static_cast<uint64_t>(-1);
+
+public:
+  pool() : id(atlas::threadpool::create()) {}
+  ~pool() {
+    if (id != static_cast<uint64_t>(-1))
+      atlas::threadpool::destroy(id);
+  }
+
+  void join() const {
+    if (id == static_cast<uint64_t>(-1))
+      throw std::runtime_error("Invalid thread pool.");
+    if (atlas::threadpool::join(id) < 0)
+      throw std::runtime_error(strerror(errno));
+  }
+
+  template <class Rep, class Period, class Clock>
+  void submit(const uint64_t jid,
+              const std::chrono::duration<Rep, Period> exec_time,
+              const std::chrono::time_point<Clock> deadline) const {
+    atlas::threadpool::submit(id, jid, exec_time, deadline);
+  }
+};
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wweak-vtables"
+class concurrent final : public executor {
+#pragma clang diagnostic pop
+  pool tp;
+  mutable std::condition_variable empty;
+  mutable std::mutex list_lock;
+  mutable std::list<work_item> work_queue;
+  mutable uint64_t count = 0;
+  std::unique_ptr<std::thread[]> workers;
+  size_t thread_count;
+
+  std::atomic_bool done{false};
+
+  void process_work(dispatch_queue *queue, int cpu) {
+    {
+      const auto tid = gettid();
+      cpu_set_t cpu_set;
+      CPU_ZERO(&cpu_set);
+      CPU_SET(cpu, &cpu_set);
+
+      sched_setaffinity(tid, sizeof(cpu_set_t), &cpu_set);
+    }
+
+    ignore_deadlines();
+    tp.join();
+    current_queue = queue;
+
+    while (!done) {
+      std::list<work_item> tmp;
+      {
+        std::unique_lock<std::mutex> lock(list_lock);
+        empty.wait(lock, [=] { return ((count != 0) || done); });
+        if (done) {
+          break;
+        }
+        --count;
+        if (!tmp.front().is_realtime) {
+          tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
+        }
+      }
+
+      if (tmp.empty()) {
+        uint64_t id;
+        work_item *ptr;
+        next(id);
+        static_assert(sizeof(id) == sizeof(ptr),
+                      "Types must be of equal size.");
+        memcpy(&ptr, &id, sizeof(id));
+        auto it =
+            std::find_if(work_queue.cbegin(), work_queue.cend(),
+                         [ptr](const auto &work) { return &work == ptr; });
+        if (it == work_queue.cend()) {
+          throw std::runtime_error("Work item not found.");
+        }
+
+        tmp.splice(tmp.cbegin(), work_queue, it);
+      }
+
+      work_item &work = tmp.front();
+
+      try {
+        auto start = cputime_clock::now();
+        work.work();
+        auto end = cputime_clock::now();
+
+        work.completion->set_value();
+
+        if (work.is_realtime) {
+          using namespace std::chrono;
+          const auto exectime = end - start;
+          const uint64_t id = reinterpret_cast<uint64_t>(&work);
+          application_estimator.train(work.type, id,
+                                      duration_cast<microseconds>(exectime));
+        }
+      } catch (...) {
+        work.completion->set_exception(std::current_exception());
+      }
+    };
+  }
+
+public:
+  concurrent(dispatch_queue *queue, std::vector<int> cpu_set)
+      : workers(std::make_unique<std::thread[]>(cpu_set.size())),
+        thread_count(cpu_set.size()) {
+    for (size_t i = 0; i < cpu_set.size(); ++i) {
+      workers[i] =
+          std::thread(&concurrent::process_work, this, queue, cpu_set[i]);
+    }
+  }
+  ~concurrent() {
+    using namespace std::literals::chrono_literals;
+    enqueue({{},
+             0us,
+             nullptr,
+             0,
+             0,
+             [=] {
+               done = true;
+               empty.notify_all();
+             },
+             std::make_shared<std::promise<void>>(),
+             false});
+
+    for (size_t i = 0; i < thread_count; ++i) {
+      if (workers[i].joinable()) {
+        workers[i].join();
+      }
+    }
+  }
+
+  void enqueue(work_item work) const override {
+    std::list<work_item> tmp;
+    tmp.push_back(std::move(work));
+
+    {
+      auto &item = tmp.front();
+      const uint64_t id = reinterpret_cast<uint64_t>(&item);
+      if (item.is_realtime) {
+        const auto exectime = application_estimator.predict(
+            item.type, id, item.metrics, item.metrics_count);
+        tp.submit(id, exectime, work.deadline);
+      } else {
+        // using namespace std::literals::chrono_literals;
+        // np::submit(thread, id, 0s, work.deadline);
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(list_lock);
+      work_queue.splice(work_queue.end(), tmp);
+      ++count;
+    }
+
+    empty.notify_one();
+  }
+};
+
+
+dispatch_queue::impl::impl(dispatch_queue *queue, std::string label)
+    : label_(std::move(label)), worker(std::make_unique<queue_worker>(queue)) {}
+
+dispatch_queue::impl::impl(dispatch_queue *queue, std::string label,
+                           std::vector<int> cpu_set)
+    : label_(std::move(label)),
+      worker(std::make_unique<concurrent>(queue, cpu_set)) {}
 
 dispatch_queue::dispatch_queue(std::string label)
     : d_(std::make_unique<impl>(this, std::move(label))) {}
@@ -264,7 +447,6 @@ void dispatch_async(dispatch_queue_t queue, void (^block)(void)) {
 void dispatch_sync(dispatch_queue_t queue, void (^block)(void)) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
   queue_->dispatch_sync(block);
-
 }
 #endif
 
