@@ -495,9 +495,11 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
-  set_procfsparam(attribute::job_stealing, vm.count("idle-pull"));
-  set_procfsparam(attribute::overload_push, vm.count("overload-push"));
-  set_procfsparam(attribute::preroll, !vm.count("no-preroll"));
+  if (!vm.count("edf")) {
+    set_procfsparam(attribute::job_stealing, vm.count("idle-pull"));
+    set_procfsparam(attribute::overload_push, vm.count("overload-push"));
+    set_procfsparam(attribute::preroll, !vm.count("no-preroll"));
+  }
 
   if (tasks.empty())
     tasks.push_back(2);
