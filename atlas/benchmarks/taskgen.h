@@ -3,8 +3,6 @@
 #include <utility>
 #include <vector>
 
-#include <boost/multiprecision/gmp.hpp>
-
 template <typename Rep, typename Res> struct utilization {
   using rep = Rep;
   using res = Res;
@@ -66,10 +64,11 @@ std::ostream &operator<<(std::ostream &os, const utilization<Rep, Res> &u) {
 
 using U = utilization<int64_t, std::milli>;
 
-using ns = std::chrono::duration<boost::multiprecision::mpz_int, std::nano>;
-using us = std::chrono::duration<boost::multiprecision::mpz_int, std::micro>;
-using ms = std::chrono::duration<boost::multiprecision::mpz_int, std::milli>;
-using s = std::chrono::duration<boost::multiprecision::mpz_int, std::ratio<1>>;
+using ns = std::chrono::duration<int64_t, std::nano>;
+using us = std::chrono::duration<int64_t, std::micro>;
+using ms = std::chrono::duration<int64_t, std::milli>;
+using s = std::chrono::duration<int64_t, std::ratio<1>>;
+
 using execution_time = std::chrono::nanoseconds;
 using period = std::chrono::milliseconds;
 using hyperperiod_t = ns;
