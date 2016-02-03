@@ -47,6 +47,13 @@ int main() {
                             0, [](int &) {}, 3);
 #endif
 
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
+                            0, std::bind(f2, 3));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
+                            0, std::bind(f2, foo));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
+                            0, std::bind(f2, std::placeholders::_1), 4);
+
   std::cout << 1 << std::endl;
   queue.dispatch_async_atlas(steady_clock::now() + 1s,
                              static_cast<double *>(nullptr), 0,
