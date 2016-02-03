@@ -9,6 +9,7 @@
 #include <stdexcept>
 
 #include <cerrno>
+#include <cstring>
 #else
 #include <errno.h>
 #endif
@@ -133,8 +134,15 @@ struct timeval to_timeval(const std::chrono::time_point<Clock, Duration> &t) {
 }
 
 namespace threadpool {
-static inline decltype(auto) create(uint64_t &id) {
-  return syscall(SYS_atlas_tp_create, &id);
+static inline auto create() {
+  uint64_t id;
+  auto ret = syscall(SYS_atlas_tp_create, &id);
+  if (ret != 0) {
+    std::ostringstream os;
+    os << "Error creating threadpool (" << errno << "): " << strerror(errno);
+    throw std::runtime_error(os.str());
+  }
+  return id;
 }
 
 static inline decltype(auto) destroy(const uint64_t id) {
