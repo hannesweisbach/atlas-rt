@@ -465,12 +465,12 @@ int main(int argc, char *argv[]) {
     ("help", "Produce help message")
     ("tasks", po::value(&tasks)->multitoken(),
      "Number of tasks in the task set. (Default: 1)")
-    ("count", po::value(&count)->default_value(1000),
-     "Number of task sets to generate. (Default: 1000)")
+    ("count", po::value(&count)->default_value(200),
+     "Number of task sets to generate. (Default: 200)")
     ("utilization", po::value(&usum)->default_value(1000),
      "Utilization of the task sets * 1e-3. (Default: 1000)")
-    ("task-utilization", po::value(&umax)->default_value(500),
-     "Maximum utilization of any task * 1e-3. (Default: 500)")
+    ("task-utilization", po::value(&umax)->default_value(1000),
+     "Maximum utilization of any task * 1e-3. (Default: 1000)")
     ("exectime", "Find minimum execution time")
     ("min-period", po::value(&pmin)->default_value(10),
      "Minimum period of any task. (Default: 10ms)")
