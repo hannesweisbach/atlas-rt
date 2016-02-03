@@ -46,7 +46,11 @@ static inline long atlas_submit(pid_t tid, uint64_t id,
 }
 
 static inline long atlas_next(uint64_t *next) {
-  return syscall(SYS_atlas_next, next);
+  for(;; ) {
+    long ret = syscall(SYS_atlas_next, next);
+    if(ret != -1 || errno != EINTR)
+      return ret;
+  }
 }
 
 static inline long atlas_remove(pid_t tid, const uint64_t id) {
