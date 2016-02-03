@@ -4,6 +4,7 @@
 #include <random>
 #include <stdexcept>
 #include <vector>
+#include <array>
 
 #include <boost/math/common_factor_rt.hpp>
 
