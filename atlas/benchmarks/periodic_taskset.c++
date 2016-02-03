@@ -333,6 +333,7 @@ public:
     }
     const auto t0 = steady_clock::now();
 
+    size_t jobs = 0;
     std::vector<release> releases(tasks.size());
     for (size_t i = 0; i < releases.size(); ++i) {
       auto &release = releases.at(i);
@@ -340,9 +341,10 @@ public:
 
       release.r = t0;
       release.t = &task;
+      jobs += static_cast<size_t>(task.jobs);
     }
 
-    for (; steady_clock::now() <= t0 + hyperperiod;) {
+    for (size_t job = 0; job < jobs; ++job) {
       for (auto &&release : releases) {
         if (release.r <= steady_clock::now()) {
           release.r = release.t->submit(release.count, release.r);
