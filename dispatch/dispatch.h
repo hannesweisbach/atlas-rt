@@ -27,20 +27,17 @@ namespace {
 
 template <typename T> uint64_t work_type(T) {
   const auto type = std::type_index(typeid(T)).hash_code();
-  std::cout << "Function Ptr " << std::hex << type << std::endl;
   return type;
 }
 
 template <typename Ret, typename... Args>
 uint64_t work_type(Ret (*&f)(Args...)) {
   const auto type = reinterpret_cast<uint64_t>(f);
-  std::cout << "Function Ptr " << std::hex << type << std::endl;
   return reinterpret_cast<uint64_t>(f);
 }
 
 template <typename Ret, typename... Args> uint64_t work_type(Ret(&f)(Args...)) {
   const auto type = reinterpret_cast<uint64_t>(&f);
-  std::cout << "Function Ref " << std::hex << type << std::endl;
   return reinterpret_cast<uint64_t>(&f);
 }
 
