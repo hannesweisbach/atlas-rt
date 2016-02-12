@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <iomanip>
+#include <chrono>
 
 #include <boost/math/common_factor_rt.hpp>
 #include <boost/program_options.hpp>
