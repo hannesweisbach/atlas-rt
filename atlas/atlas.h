@@ -75,9 +75,9 @@ static inline long atlas_tp_join(const uint64_t id) {
   return syscall(SYS_atlas_tp_join, id);
 }
 
-static inline long atlas_submit(const uint64_t tpid, const uint64_t id,
-                                const struct timeval *const exectime,
-                                const struct timeval *const deadline) {
+static inline long atlas_tp_submit(const uint64_t tpid, const uint64_t id,
+                                   const struct timeval *const exectime,
+                                   const struct timeval *const deadline) {
   return syscall(SYS_atlas_tp_submit, tpid, id, exectime, deadline);
 }
 
