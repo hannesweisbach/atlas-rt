@@ -159,7 +159,8 @@ struct valid_id {
   }
 };
 
-namespace atlas::test {
+namespace atlas {
+namespace next {
   template <typename IdPtr> struct next_test {
     static result test(std::ostringstream &os) {
       std::promise<struct result> promise;
@@ -178,6 +179,7 @@ namespace atlas::test {
   };
 
   template <typename... Us> using next = testcase<next_test, Us...>;
+}
 }
 
 int main(int argc, char *argv[]) {

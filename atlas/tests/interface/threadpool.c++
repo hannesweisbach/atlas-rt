@@ -146,7 +146,8 @@ struct Worker_invalid {
   }
 };
 
-namespace atlas::test {
+namespace atlas {
+namespace test {
   template <typename TPId> struct create_test {
     static result test(std::ostringstream &os) {
       TPId id;
@@ -207,6 +208,7 @@ namespace atlas::test {
   template <typename... Us> using destroy = testcase<destroy_test, Us...>;
   template <typename... Us> using join = testcase<join_test, Us...>;
   template <typename... Us> using submit = testcase<submit_test, Us...>;
+}
 }
 
 static void create() {
