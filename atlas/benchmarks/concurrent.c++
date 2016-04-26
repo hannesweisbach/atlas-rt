@@ -71,6 +71,9 @@ struct result {
   int64_t jobs{0};
   int64_t missed{0};
 
+  result() = default;
+  result(int64_t jobs_, int64_t missed_) : jobs(jobs_), missed(missed_) {}
+
   result operator+(const result &rhs) {
     return result{jobs + rhs.jobs, missed + rhs.missed};
   }
