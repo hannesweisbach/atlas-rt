@@ -160,7 +160,7 @@ struct valid_id {
 };
 
 namespace atlas {
-namespace next {
+namespace test {
   template <typename IdPtr> struct next_test {
     static result test(std::ostringstream &os) {
       std::promise<struct result> promise;
