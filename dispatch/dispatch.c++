@@ -50,13 +50,13 @@ public:
   bool atlas() const { return use_atlas_; }
 };
 
-static Options options;
 
 namespace atlas {
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wexit-time-destructors"
 #pragma clang diagnostic ignored "-Wglobal-constructors"
+static Options options;
 static atlas::estimator application_estimator;
 #pragma clang diagnostic pop
 
