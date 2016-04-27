@@ -44,10 +44,7 @@ static constexpr std::chrono::nanoseconds
 overallocation(std::chrono::nanoseconds prediction) {
   using namespace std::chrono;
   using namespace std::literals::chrono_literals;
-  if (prediction > 1ms)
-    return (prediction * 1025) / 1000;
-  else
-    return prediction + 25us;
+  return (prediction > 1ms) ? (prediction * 1025) / 1000 : prediction + 25us;
 }
 
 struct estimator_ctx {
