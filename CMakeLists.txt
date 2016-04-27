@@ -92,5 +92,5 @@ include_directories(${Boost_INCLUDE_DIR})
 add_subdirectory(common)
 add_subdirectory(atlas)
 add_subdirectory(predictor)
-add_subdirectory(dispatch)
+add_subdirectory(runtime)
 
