@@ -9,6 +9,7 @@
 #include <sys/syscall.h>
 #include <csignal>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 
 #include "predictor/predictor.h"
@@ -20,6 +21,36 @@
 static thread_local atlas::dispatch_queue *current_queue;
 
 static pid_t gettid() { return static_cast<pid_t>(syscall(SYS_gettid)); }
+
+class Options {
+  bool use_gcd_ = false;
+  bool use_atlas_ = true;
+  /* estimator dump */
+public:
+  Options() {
+    /* ATLAS_BACKEND:
+     *  - GCD use APPLE GCD
+     *  - ATLAS use ATLAS (default when not set)
+     *  - NONE use ATLAS queuing w/o kernel support
+     */
+    try {
+      std::string backend(std::getenv("ATLAS_BACKEND"));
+      if (backend == "GCD") {
+        use_gcd_ = true;
+      } else if (backend == "ATLAS") {
+        use_atlas_ = true;
+      } else if (backend == "NONE") {
+        use_gcd_ = false;
+        use_atlas_ = false;
+      }
+    } catch (...) {
+    }
+  }
+
+  bool atlas() const { return use_atlas_; }
+};
+
+static Options options;
 
 namespace atlas {
 
@@ -411,8 +442,8 @@ dispatch_queue::dispatch(const std::chrono::steady_clock::time_point deadline,
   using namespace std::literals::chrono_literals;
   auto promise = std::make_shared<std::promise<void>>();
   auto future = promise->get_future();
-  d_->dispatch(
-      {deadline, 0us, metrics, metrics_count, type, block, promise, true});
+  d_->dispatch({deadline, 0us, metrics, metrics_count, type, block, promise,
+                options.atlas()});
   return future;
 }
 }
