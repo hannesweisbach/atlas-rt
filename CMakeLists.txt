@@ -1,6 +1,46 @@
 project(ATLAS-rt)
 cmake_minimum_required(VERSION 2.8)
 
+# GTest Boilerplate begin
+include(ExternalProject)
+set_property(DIRECTORY PROPERTY EP_BASE Dependencies)
+
+ExternalProject_Add(GTestExternal
+    URL https://github.com/google/googletest/archive/release-1.7.0.zip
+    DOWNLOAD_NO_PROGRESS 1
+    CMAKE_ARGS -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    # Disable install step
+    INSTALL_COMMAND ""
+)
+
+ExternalProject_Get_Property(GTestExternal source_dir binary_dir)
+
+set(LIBPREFIX "${CMAKE_STATIC_LIBRARY_PREFIX}")
+set(LIBSUFFIX "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(GTEST_INCLUDES "${source_dir}/include")
+set(GTEST_LIBRARY  "${binary_dir}/${LIBPREFIX}gtest${LIBSUFFIX}")
+set(GTEST_MAINLIB  "${binary_dir}/${LIBPREFIX}gtest_main${LIBSUFFIX}")
+
+#work-around until https://cmake.org/Bug/view.php?id=15052 is fixed
+file(MAKE_DIRECTORY ${GTEST_INCLUDES})
+
+add_library(GTest IMPORTED STATIC GLOBAL)
+set_target_properties(GTest PROPERTIES
+    IMPORTED_LOCATION                 "${GTEST_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES     "${GTEST_INCLUDES}"
+    IMPORTED_LINK_INTERFACE_LIBRARIES "Threads::Threads")
+
+add_library(GTestMain IMPORTED STATIC GLOBAL)
+set_target_properties(GTestMain PROPERTIES
+    IMPORTED_LOCATION "${GTEST_MAINLIB}"
+    IMPORTED_LINK_INTERFACE_LIBRARIES "${GTEST_LIBRARY};Threads::Threads")
+
+add_dependencies(GTest GTestExternal)
+add_dependencies(GTestMain GTestExternal)
+
+enable_testing()
+# GTest Boilerplate end
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 if(${CMAKE_C_COMPILER_ID} MATCHES "Clang")
