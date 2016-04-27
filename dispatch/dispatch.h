@@ -99,7 +99,7 @@ public:
   }
 
   template <typename Func, typename... Args>
-  void dispatch_sync_atlas(const std::chrono::steady_clock::time_point deadline,
+  auto dispatch_sync_atlas(const std::chrono::steady_clock::time_point deadline,
                            const double *metrics, const size_t metrics_count,
                            Func &&block, Args &&... args) {
     return dispatch_async_atlas(deadline, metrics, metrics_count,
@@ -115,8 +115,8 @@ public:
   }
 
   template <typename Func, typename... Args>
-  void dispatch_sync(Func &&f, Args &&... args) {
-    dispatch(std::bind(std::forward<Func>(f), std::forward<Args>(args)...))
+  auto dispatch_sync(Func &&f, Args &&... args) {
+    return dispatch(std::bind(std::forward<Func>(f), std::forward<Args>(args)...))
         .get();
   }
 };
