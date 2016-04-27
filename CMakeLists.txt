@@ -68,6 +68,7 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 find_library(BLOCKSRUNTIME_FOUND BlocksRuntime)
 find_package(GMP REQUIRED)
+find_library(DISPATCH_FOUND dispatch)
 
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
