@@ -16,6 +16,7 @@
 #include "atlas/atlas.h"
 
 #include "dispatch.h"
+#include "dispatch-internal.h"
 #include "cputime_clock.h"
 
 static thread_local atlas::dispatch_queue *current_queue;
@@ -48,6 +49,7 @@ public:
   }
 
   bool atlas() const { return use_atlas_; }
+  bool gcd() const { return use_gcd_; }
 };
 
 
@@ -97,25 +99,7 @@ static void ignore_deadlines() {
 }
 }
 
-struct work_item {
-  std::chrono::steady_clock::time_point deadline;
-  std::chrono::microseconds prediction;
-  const double *metrics;
-  size_t metrics_count;
-  uint64_t type;
-  std::function<void()> work;
-  std::shared_ptr<std::promise<void>> completion;
-  bool is_realtime;
-};
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wweak-vtables"
-class executor {
-#pragma clang diagnostic pop
-public:
-  virtual ~executor() = default;
-  virtual void enqueue(work_item) const = 0;
-};
+executor::~executor() = default;
 
 struct dispatch_queue::impl {
   uint32_t magic = 0x61746C73; // 'atls'
@@ -146,8 +130,8 @@ class queue_worker final : public executor {
       std::list<work_item> tmp;
       {
         std::unique_lock<std::mutex> lock(list_lock);
-        empty.wait(lock, [=] { return !work_queue.empty(); });
-        if (!tmp.front().is_realtime) {
+        empty.wait(lock, [this] { return !work_queue.empty(); });
+        if (!work_queue.front().is_realtime) {
           tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
         }
       }
@@ -159,25 +143,26 @@ class queue_worker final : public executor {
         static_assert(sizeof(id) == sizeof(ptr),
                       "Types must be of equal size.");
         memcpy(&ptr, &id, sizeof(id));
-        // TODO: lock queue.
-        auto it =
-            std::find_if(work_queue.cbegin(), work_queue.cend(),
-                         [ptr](const auto &work) { return &work == ptr; });
-        if (it == work_queue.cend()) {
-          throw std::runtime_error("Work item not found.");
-        }
+        {
+          std::unique_lock<std::mutex> lock(list_lock);
+          auto it =
+              std::find_if(work_queue.cbegin(), work_queue.cend(),
+                           [ptr](const auto &work) { return &work == ptr; });
+          if (it == work_queue.cend()) {
+            throw std::runtime_error("Work item not found.");
+          }
 
-        tmp.splice(tmp.cbegin(), work_queue, it);
+          tmp.splice(tmp.cbegin(), work_queue, it);
+        }
       }
 
       work_item &work = tmp.front();
 
       try {
         auto start = cputime_clock::now();
+        // might throw std::future_error, if already invoked
         work.work();
         auto end = cputime_clock::now();
-
-        work.completion->set_value();
 
         if (work.is_realtime) {
           using namespace std::chrono;
@@ -191,8 +176,9 @@ class queue_worker final : public executor {
             std::terminate();
           }
         }
-      } catch (...) {
-        work.completion->set_exception(std::current_exception());
+      } catch (const std::runtime_error &e) {
+        // Bad library, wrinting to cerr!
+        std::cerr << e.what() << std::endl;
       }
     };
   }
@@ -207,8 +193,7 @@ public:
              nullptr,
              0,
              0,
-             [=] { done = true; },
-             std::make_shared<std::promise<void>>(),
+             std::packaged_task<void()>([=] { done = true; }),
              false});
     if (thread.joinable())
       thread.join();
@@ -224,7 +209,7 @@ public:
       if (item.is_realtime) {
         const auto exectime = application_estimator.predict(
             item.type, id, item.metrics, item.metrics_count);
-        np::submit(thread, id, exectime, work.deadline);
+        np::submit(thread, id, exectime, item.deadline);
       } else {
         // using namespace std::literals::chrono_literals;
         // np::submit(thread, id, 0s, work.deadline);
@@ -233,7 +218,7 @@ public:
 
     {
       std::lock_guard<std::mutex> lock(list_lock);
-      work_queue.splice(work_queue.end(), tmp);
+      work_queue.splice(work_queue.end(), std::move(tmp));
     }
 
     empty.notify_one();
@@ -302,7 +287,7 @@ class concurrent final : public executor {
           break;
         }
         --count;
-        if (!tmp.front().is_realtime) {
+        if (!work_queue.front().is_realtime) {
           tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
         }
       }
@@ -314,14 +299,17 @@ class concurrent final : public executor {
         static_assert(sizeof(id) == sizeof(ptr),
                       "Types must be of equal size.");
         memcpy(&ptr, &id, sizeof(id));
-        auto it =
-            std::find_if(work_queue.cbegin(), work_queue.cend(),
-                         [ptr](const auto &work) { return &work == ptr; });
-        if (it == work_queue.cend()) {
-          throw std::runtime_error("Work item not found.");
-        }
+        {
+          std::unique_lock<std::mutex> lock(list_lock);
+          auto it =
+              std::find_if(work_queue.cbegin(), work_queue.cend(),
+                           [ptr](const auto &work) { return &work == ptr; });
+          if (it == work_queue.cend()) {
+            throw std::runtime_error("Work item not found.");
+          }
 
-        tmp.splice(tmp.cbegin(), work_queue, it);
+          tmp.splice(tmp.cbegin(), work_queue, it);
+        }
       }
 
       work_item &work = tmp.front();
@@ -331,8 +319,6 @@ class concurrent final : public executor {
         work.work();
         auto end = cputime_clock::now();
 
-        work.completion->set_value();
-
         if (work.is_realtime) {
           using namespace std::chrono;
           const auto exectime = end - start;
@@ -341,7 +327,6 @@ class concurrent final : public executor {
                                       duration_cast<microseconds>(exectime));
         }
       } catch (...) {
-        work.completion->set_exception(std::current_exception());
       }
     };
   }
@@ -362,11 +347,10 @@ public:
              nullptr,
              0,
              0,
-             [=] {
+             std::packaged_task<void()>([=] {
                done = true;
                empty.notify_all();
-             },
-             std::make_shared<std::promise<void>>(),
+             }),
              false});
 
     for (size_t i = 0; i < thread_count; ++i) {
@@ -386,7 +370,7 @@ public:
       if (item.is_realtime) {
         const auto exectime = application_estimator.predict(
             item.type, id, item.metrics, item.metrics_count);
-        tp.submit(id, exectime, work.deadline);
+        tp.submit(id, exectime, item.deadline);
       } else {
         // using namespace std::literals::chrono_literals;
         // np::submit(thread, id, 0s, work.deadline);
@@ -403,9 +387,16 @@ public:
   }
 };
 
-
 dispatch_queue::impl::impl(dispatch_queue *queue, std::string label)
-    : label_(std::move(label)), worker(std::make_unique<queue_worker>(queue)) {}
+    : label_(std::move(label)),
+#if defined(__clang__) && defined(__block)
+      worker(options.gcd() ? make_gcd_queue(label_)
+                           : std::make_unique<queue_worker>(queue))
+#else
+      worker(std::make_unique<queue_worker>(queue))
+#endif
+{
+}
 
 dispatch_queue::impl::impl(dispatch_queue *queue, std::string label,
                            std::vector<int> cpu_set)
@@ -427,10 +418,15 @@ dispatch_queue::~dispatch_queue() = default;
 
 std::future<void> dispatch_queue::dispatch(std::function<void()> f) const {
   using namespace std::literals::chrono_literals;
-  auto promise = std::make_shared<std::promise<void>>();
-  auto future = promise->get_future();
-  d_->dispatch({std::chrono::steady_clock::now(), 0us, nullptr, 0,
-                static_cast<uint64_t>(-1), f, promise, false});
+  auto item = work_item{std::chrono::steady_clock::now(),
+                        0us,
+                        nullptr,
+                        0,
+                        static_cast<uint64_t>(-1),
+                        std::packaged_task<void()>(f),
+                        true};
+  auto future = item.work.get_future();
+  d_->dispatch(std::move(item));
   return future;
 }
 
@@ -440,89 +436,11 @@ dispatch_queue::dispatch(const std::chrono::steady_clock::time_point deadline,
                          const uint64_t type,
                          std::function<void()> block) const {
   using namespace std::literals::chrono_literals;
-  auto promise = std::make_shared<std::promise<void>>();
-  auto future = promise->get_future();
-  d_->dispatch({deadline, 0us, metrics, metrics_count, type, block, promise,
-                options.atlas()});
+  auto item = work_item{deadline,       0us,  metrics,
+                        metrics_count,  type, std::packaged_task<void()>(block),
+                        options.atlas()};
+  auto future = item.work.get_future();
+  d_->dispatch(std::move(item));
   return future;
-}
-}
-
-namespace {
-static auto to_time_point(const struct timespec *const ts) {
-  using namespace std::chrono;
-  const auto s = seconds{ts->tv_sec};
-  const auto ns = nanoseconds{ts->tv_nsec};
-  return steady_clock::time_point{s + ns};
-}
-}
-
-extern "C" {
-dispatch_queue_t dispatch_queue_create(const char *label,
-                                       dispatch_queue_attr_t attr) {
-  return reinterpret_cast<dispatch_queue_t>(
-      new atlas::dispatch_queue(std::string(label)));
-}
-
-void dispatch_queue_release(dispatch_queue_t queue) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  delete queue_;
-}
-
-#if defined(__clang__) && defined(__block)
-void dispatch_async(dispatch_queue_t queue, void (^block)(void)) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_async(block);
-}
-
-void dispatch_sync(dispatch_queue_t queue, void (^block)(void)) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync(block);
-}
-#endif
-
-void dispatch_async_f(dispatch_queue_t queue, void *context,
-                      void (*function)(void *)) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_async(function, context);
-}
-
-void dispatch_sync_f(dispatch_queue_t queue, void *context,
-                     void (*function)(void *)) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync(function, context);
-}
-
-#if defined(__clang__) && defined(__block)
-void dispatch_async_atlas(dispatch_queue_t queue,
-                          const struct timespec *deadline,
-                          const double *metrics, const size_t metrics_count,
-                          void (^block)(void));
-
-void dispatch_sync_atlas(dispatch_queue_t queue,
-                         const struct timespec *deadline, const double *metrics,
-                         const size_t metrics_count, void (^block)(void)) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync_atlas(to_time_point(deadline), metrics, metrics_count,
-                              block);
-}
-#endif
-
-void dispatch_async_atlas_f(dispatch_queue_t queue,
-                            const struct timespec *deadline,
-                            const double *metrics, const size_t metrics_count,
-                            void *context, void (*function)(void *)) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_async_atlas(to_time_point(deadline), metrics, metrics_count,
-                               function, context);
-}
-
-void dispatch_sync_atlas_f(dispatch_queue_t queue,
-                           const struct timespec *deadline,
-                           const double *metrics, const size_t metrics_count,
-                           void *context, void (*function)(void *)) {
-  auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync_atlas(to_time_point(deadline), metrics, metrics_count,
-                              function, context);
 }
 }

@@ -27,17 +27,24 @@ namespace {
 
 template <typename T> uint64_t work_type(T) {
   const auto type = std::type_index(typeid(T)).hash_code();
+  //std::cout << "Function Ptr " << std::hex << type << std::endl;
   return type;
 }
 
 template <typename Ret, typename... Args>
 uint64_t work_type(Ret (*&f)(Args...)) {
+#if 0
   const auto type = reinterpret_cast<uint64_t>(f);
+  std::cout << "Function Ptr " << std::hex << type << std::endl;
+#endif
   return reinterpret_cast<uint64_t>(f);
 }
 
 template <typename Ret, typename... Args> uint64_t work_type(Ret(&f)(Args...)) {
+#if 0
   const auto type = reinterpret_cast<uint64_t>(&f);
+  std::cout << "Function Ref " << std::hex << type << std::endl;
+#endif
   return reinterpret_cast<uint64_t>(&f);
 }
 
@@ -123,48 +130,3 @@ public:
 }
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct dispatch_queue;
-struct dispatch_queue_attr;
-typedef struct dispatch_queue *dispatch_queue_t;
-typedef struct dispatch_queue_attr *dispatch_queue_attr_t;
-
-dispatch_queue_t dispatch_queue_create(const char *label,
-                                       dispatch_queue_attr_t attr);
-void dispatch_queue_release(dispatch_queue_t);
-
-#if defined(__clang__) && defined(__block)
-void dispatch_async(dispatch_queue_t queue, void (^block)(void));
-void dispatch_sync(dispatch_queue_t queue, void (^block)(void));
-#endif
-
-void dispatch_async_f(dispatch_queue_t queue, void *context,
-                      void (*function)(void *));
-void dispatch_sync_f(dispatch_queue_t queue, void *context,
-                     void (*function)(void *));
-
-#if defined(__clang__) && defined(__block)
-void dispatch_async_atlas(dispatch_queue_t queue,
-                          const struct timespec *deadline,
-                          const double *metrics, const size_t metrics_count,
-                          void (^block)(void));
-void dispatch_sync_atlas(dispatch_queue_t queue,
-                         const struct timespec *deadline, const double *metrics,
-                         const size_t metrics_count, void (^block)(void));
-#endif
-
-void dispatch_async_atlas_f(dispatch_queue_t queue,
-                            const struct timespec *deadline,
-                            const double *metrics, const size_t metrics_count,
-                            void *context, void (*function)(void *));
-void dispatch_sync_atlas_f(dispatch_queue_t queue,
-                           const struct timespec *deadline,
-                           const double *metrics, const size_t metrics_count,
-                           void *context, void (*function)(void *));
-
-#ifdef __cplusplus
-}
-#endif

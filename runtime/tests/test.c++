@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "dispatch/dispatch.h"
+#include "runtime/dispatch.h"
 
 static void f1() {}
 static void f2(int) {}

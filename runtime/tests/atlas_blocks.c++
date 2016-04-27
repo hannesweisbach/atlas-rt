@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "dispatch/dispatch.h"
+#include "runtime/dispatch.h"
 
 static void l2(atlas::dispatch_queue &queue) {
   queue.dispatch_sync_atlas(std::chrono::steady_clock::now(),
@@ -73,6 +73,7 @@ int main() {
                              static_cast<double *>(nullptr), 0, ^(int &i) {
                                std::cout << "block with arg " << i << std::endl;
                              }, 44);
+  std::cout << "new block" << std::endl;
   queue.dispatch_sync(^{
     std::cout << "block" << std::endl;
   });
