@@ -6,4 +6,7 @@ if(FOUND_BLOCKSRUNTIME)
 target_link_libraries(atlas-dispatch INTERFACE ${BLOCKSRUNTIME_LIB})
 endif()
 
+install(TARGETS atlas-dispatch DESTINATION lib)
+install(FILES dispatch.h DESTINATION include/atlas)
+
 add_subdirectory(tests)
