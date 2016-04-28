@@ -1,4 +1,7 @@
 *.swp
 *.swo
 *.swn
+*.swl
+*.swm
+*.swx
 build
