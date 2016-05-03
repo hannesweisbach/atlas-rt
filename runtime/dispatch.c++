@@ -111,6 +111,15 @@ struct dispatch_queue::impl {
   void dispatch(work_item item) const { worker->enqueue(std::move(item)); }
 };
 
+static work_item *next_work_item() {
+  uint64_t id;
+  work_item *ptr;
+  next(id);
+  static_assert(sizeof(id) >= sizeof(ptr),
+                "id must have at least pointer size.");
+  return reinterpret_cast<work_item *>(static_cast<uintptr_t>(id));
+}
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wweak-vtables"
 class queue_worker final : public executor {
@@ -137,12 +146,8 @@ class queue_worker final : public executor {
       }
 
       if (tmp.empty()) {
-        uint64_t id;
-        work_item *ptr;
-        next(id);
-        static_assert(sizeof(id) == sizeof(ptr),
-                      "Types must be of equal size.");
-        memcpy(&ptr, &id, sizeof(id));
+        auto ptr = next_work_item();
+
         {
           std::unique_lock<std::mutex> lock(list_lock);
           auto it =
@@ -293,12 +298,8 @@ class concurrent final : public executor {
       }
 
       if (tmp.empty()) {
-        uint64_t id;
-        work_item *ptr;
-        next(id);
-        static_assert(sizeof(id) == sizeof(ptr),
-                      "Types must be of equal size.");
-        memcpy(&ptr, &id, sizeof(id));
+        auto ptr = next_work_item();
+
         {
           std::unique_lock<std::mutex> lock(list_lock);
           auto it =
