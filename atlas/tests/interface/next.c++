@@ -167,7 +167,7 @@ namespace test {
       auto future = promise.get_future();
       std::thread worker([promise = std::move(promise)]() mutable {
         auto err = atlas_next(IdPtr::id());
-        promise.set_value({errno, err != 0});
+        promise.set_value(result{errno, err != 0});
       });
 
       atlas::np::submit(worker, 1, 1s, 1s);
