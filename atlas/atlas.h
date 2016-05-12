@@ -26,11 +26,14 @@
 #define SYS_atlas_tp_destroy 328
 #define SYS_atlas_tp_join 329
 #define SYS_atlas_tp_submit 330
+#define ARG64(x) x
 #elif defined(__i386__)
 #define SYS_atlas_next 359
 #define SYS_atlas_submit 360
 #define SYS_atlas_update 361
 #define SYS_atlas_remove 362
+#elif defined(__arm__)
+#define ARG64(x) static_cast<uint32_t>(x >> 32), static_cast<uint32_t>(id & ~0)
 #else
 #error Architecture not supported.
 #endif
@@ -42,7 +45,11 @@ extern "C" {
 static inline long atlas_submit(pid_t tid, uint64_t id,
                                 const struct timeval *const exectime,
                                 const struct timeval *const deadline) {
+#if defined(__x86_64__)
   return syscall(SYS_atlas_submit, tid, id, exectime, deadline);
+#elif defined(__arm__)
+  return syscall(SYS_atlas_submit, tid, 0, ARG64(id), exectime, deadline);
+#endif
 }
 
 static inline long atlas_next(uint64_t *next) {
@@ -54,13 +61,21 @@ static inline long atlas_next(uint64_t *next) {
 }
 
 static inline long atlas_remove(pid_t tid, const uint64_t id) {
+#if defined(__x86_64__)
   return syscall(SYS_atlas_remove, tid, id);
+#elif defined(__arm__)
+  return syscall(SYS_atlas_remove, tid, 0, ARG64(id));
+#endif
 }
 
 static inline long atlas_update(pid_t tid, uint64_t id,
                                 const struct timeval *const exectime,
                                 const struct timeval *const deadline) {
+#if defined(__x86_64__)
   return syscall(SYS_atlas_update, tid, id, exectime, deadline);
+#elif defined(__arm__)
+  return syscall(SYS_atlas_update, tid, 0, ARG64(id), exectime, deadline);
+#endif
 }
 
 static inline long atlas_tp_create(uint64_t *id) {
@@ -68,17 +83,18 @@ static inline long atlas_tp_create(uint64_t *id) {
 }
 
 static inline long atlas_tp_destroy(const uint64_t id) {
-  return syscall(SYS_atlas_tp_destroy, id);
+  return syscall(SYS_atlas_tp_destroy, ARG64(id));
 }
 
 static inline long atlas_tp_join(const uint64_t id) {
-  return syscall(SYS_atlas_tp_join, id);
+  return syscall(SYS_atlas_tp_join, ARG64(id));
 }
 
 static inline long atlas_tp_submit(const uint64_t tpid, const uint64_t id,
                                    const struct timeval *const exectime,
                                    const struct timeval *const deadline) {
-  return syscall(SYS_atlas_tp_submit, tpid, id, exectime, deadline);
+  return syscall(SYS_atlas_tp_submit, ARG64(tpid), ARG64(id), exectime,
+                 deadline);
 }
 
 #ifdef __cplusplus
@@ -150,17 +166,18 @@ static inline auto create() {
 }
 
 static inline decltype(auto) destroy(const uint64_t id) {
-  return syscall(SYS_atlas_tp_destroy, id);
+  return syscall(SYS_atlas_tp_destroy, ARG64(id));
 }
 
 static inline decltype(auto) join(const uint64_t id) {
-  return syscall(SYS_atlas_tp_join, id);
+  return syscall(SYS_atlas_tp_join, ARG64(id));
 }
 
 static inline decltype(auto) submit(const uint64_t tpid, const uint64_t id,
                                     const struct timeval *const exectime,
                                     const struct timeval *const deadline) {
-  return syscall(SYS_atlas_tp_submit, tpid, id, exectime, deadline);
+  return syscall(SYS_atlas_tp_submit, ARG64(tpid), ARG64(id), exectime,
+                 deadline);
 }
 
 template <class Rep1, class Period1, class Rep2, class Period2>
@@ -246,12 +263,16 @@ decltype(auto) update(pid_t tid, uint64_t id,
 namespace np {
 
 static inline pid_t from(const pthread_t tid) {
-  /* on linux x86_64 glibc has the struct pthread.tid member at (byte-) offset
-   * 720. */
-  const size_t offset = 90;
+  /* (byte) offset of the pthread.tid member from glibc */
+#if defined(__x86_64__)
+  const size_t offset = 720;
+#elif defined(__arm__)
+  const size_t offset = 104;
+#else
+#error "Architecture not supported."
+#endif
   pid_t result;
-  uint64_t *tmp = reinterpret_cast<uint64_t *>(tid) + offset;
-  pid_t *src = reinterpret_cast<pid_t *>(tmp);
+  pid_t *src = reinterpret_cast<pid_t *>(reinterpret_cast<char *>(tid) + offset);
   std::copy(src, src + 1, &result);
   if (!result) {
     std::ostringstream os;
