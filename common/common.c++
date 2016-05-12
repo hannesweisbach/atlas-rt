@@ -58,13 +58,13 @@ void set_affinity(std::initializer_list<unsigned> cpus, pid_t tid) {
 
 void set_affinity(unsigned cpu, pid_t tid) { set_affinity({cpu}, tid); }
 void set_affinity(unsigned cpu, std::thread::id id) { set_affinity({cpu}, id); }
-void set_affinity(unsigned cpu, const std::thread &t) {
+void set_affinity(unsigned cpu, std::thread &t) {
   set_affinity({cpu}, t);
 }
 void set_affinity(std::initializer_list<unsigned> cpus, std::thread::id id) {
   set_affinity(cpus, atlas::np::from(id));
 }
-void set_affinity(std::initializer_list<unsigned> cpus, const std::thread &t) {
+void set_affinity(std::initializer_list<unsigned> cpus, std::thread &t) {
   set_affinity(cpus, atlas::np::from(t));
 }
 

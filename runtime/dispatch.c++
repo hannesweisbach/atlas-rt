@@ -127,7 +127,7 @@ class queue_worker final : public executor {
   mutable std::condition_variable empty;
   mutable std::mutex list_lock;
   mutable std::list<work_item> work_queue;
-  std::thread thread;
+  mutable std::thread thread;
 
   bool done = false;
 

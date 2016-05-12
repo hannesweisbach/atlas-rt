@@ -262,25 +262,26 @@ static inline pid_t from(const pthread_t tid) {
 }
 
 static inline pid_t from(const std::thread::id tid) {
-  /* std::thread::id has a pthread_t as first member in libc++ */
+  /* std::thread::id has a pthread_t as first member in libc++;
+   * native_handle() does not exist in std::this_thread namespace */
   return from(*reinterpret_cast<const pthread_t *>(&tid));
 }
 
-static inline decltype(auto) from(const std::thread &thread) {
-  return from(thread.get_id());
+static inline decltype(auto) from(std::thread &thread) {
+  return from(thread.native_handle());
 }
 
 static inline auto from(const pid_t &tid) { return tid; }
 
 template <typename Handle, class Rep1, class Period1, class Rep2, class Period2>
-decltype(auto) submit(const Handle &tid, uint64_t id,
+decltype(auto) submit(Handle &tid, uint64_t id,
                       std::chrono::duration<Rep1, Period1> exec_time,
                       std::chrono::duration<Rep2, Period2> deadline) {
   return atlas::submit(from(tid), id, exec_time, deadline);
 }
 
 template <typename Handle, class Rep, class Period, class Clock, class Duration>
-decltype(auto) submit(const Handle &tid, uint64_t id,
+decltype(auto) submit(Handle &tid, uint64_t id,
                       std::chrono::duration<Rep, Period> exec_time,
                       std::chrono::time_point<Clock, Duration> deadline) {
   return atlas::submit(from(tid), id, exec_time, deadline);
