@@ -55,20 +55,16 @@ llsp_t *llsp_new(size_t count)
 	llsp->metrics = count;
 	llsp->full.columns = count + 1;
 	llsp->sort.columns = count + 1;
-	
-	return llsp;
-}
-
-void llsp_add(llsp_t *llsp, const double *metrics, double target)
-{
-	const size_t column_count = llsp->full.columns;
-	const size_t row_count = llsp->full.columns + 1;  // extra row for shifting down and trisolve
-	const size_t column_size = row_count * sizeof(double);
-	const size_t data_size = column_count * row_count * sizeof(double);
-	const size_t matrix_size = column_count * sizeof(double *);
-	const size_t index_last = column_count - 1;
+	llsp->good.columns = count + 1;
 	
 	if (!llsp->data) {
+		const size_t column_count = llsp->full.columns;
+		const size_t row_count = llsp->full.columns + 1;  // extra row for shifting down and trisolve
+		const size_t data_size = column_count * row_count * sizeof(double);
+		const size_t column_size = row_count * sizeof(double);
+		const size_t matrix_size = column_count * sizeof(double *);
+		const size_t index_last = column_count - 1;
+
 		llsp->data        = malloc(data_size);
 		llsp->full.matrix = malloc(matrix_size);
 		llsp->sort.matrix = malloc(matrix_size);
@@ -87,6 +83,15 @@ void llsp_add(llsp_t *llsp, const double *metrics, double target)
 		memset(llsp->data, 0, data_size);
 	}
 	
+	return llsp;
+}
+
+void llsp_add(llsp_t *llsp, const double *metrics, double target)
+{
+	const size_t column_count = llsp->full.columns;
+	const size_t row_count = llsp->full.columns + 1;  // extra row for shifting down and trisolve
+	const size_t data_size = column_count * row_count * sizeof(double);
+
 	/* age out the past a little bit */
 	for (size_t element = 0; element < row_count * column_count; element++)
 		llsp->data[element] *= 1.0 - AGING_FACTOR;
