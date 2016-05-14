@@ -16,5 +16,6 @@ public:
                                    const double *metrics, const size_t count);
   void train(const uint64_t job_type, const uint64_t id,
              const std::chrono::nanoseconds exectime);
+  bool operator==(const estimator &rhs) const;
 };
 }

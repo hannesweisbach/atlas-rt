@@ -23,6 +23,100 @@ extern "C" {
   throw std::runtime_error(os.str());
 }
 
+static bool operator==(const struct llsp_s &lhs, const struct llsp_s &rhs) {
+  bool equal = true;
+  if (lhs.metrics != rhs.metrics) {
+    std::cout << "metrics differ" << std::endl;
+    equal = false;
+  }
+
+  if ((lhs.data == nullptr) != (rhs.data == nullptr)) {
+    std::cout << "Initialization state differs" << std::endl;
+    return false;
+  }
+
+  const size_t metrics = lhs.metrics;
+  const size_t data_size = (metrics + 1) * (metrics + 2) * sizeof(double);
+  if (memcmp(lhs.data, rhs.data, data_size) != 0) {
+    std::cout << "data differs" << std::endl;
+    for (size_t i = 0; i < data_size / sizeof(double); ++i) {
+      std::cout << lhs.data + i << " " << lhs.data[i] << " " << rhs.data + i
+                << " " << rhs.data[i] << std::endl;
+    }
+    equal = false;
+  }
+
+  if (lhs.full.columns != rhs.full.columns ||
+      lhs.sort.columns != rhs.sort.columns ||
+      lhs.good.columns != rhs.good.columns) {
+    std::cout << "column mismatch" << std::endl;
+    equal = false;
+  }
+
+  {
+    for (size_t i = 0; i < lhs.full.columns; ++i) {
+      if (lhs.full.matrix[i] - lhs.data != rhs.full.matrix[i] - rhs.data) {
+        std::cout << "full offsets differ " << i << " of " << lhs.full.columns
+                  << std::endl;
+        std::cout << lhs.data << " " << lhs.full.matrix[i] - lhs.data << "; "
+                  << rhs.data << " " << rhs.full.matrix[i] - rhs.data << " "
+                  << rhs.full.matrix[i] << std::endl;
+        equal = false;
+      }
+    }
+  }
+
+  {
+    for (size_t i = 0; i < lhs.sort.columns; ++i) {
+      if (lhs.sort.matrix[i] - lhs.data != rhs.sort.matrix[i] - rhs.data) {
+        std::cout << "sort offsets differ" << std::endl;
+        equal = false;
+      }
+    }
+  }
+
+  {
+    for (size_t i = 0; i < lhs.good.columns; ++i) {
+      if (lhs.good.matrix[i] - lhs.data == rhs.good.matrix[i] - rhs.data) {
+        continue;
+      } else if (lhs.good.matrix[i] == lhs.good.matrix[lhs.good.columns - 1] &&
+                 rhs.good.matrix[i] == rhs.good.matrix[rhs.good.columns - 1]) {
+        continue;
+      } else {
+        std::cout << "good offsets differ: " << std::endl;
+        std::cout << lhs.good.matrix[i] << " " << lhs.data << " ("
+                  << lhs.good.matrix[i] - lhs.data << ") "
+                  << lhs.good.matrix[lhs.good.columns - 1] << std::endl;
+        std::cout << rhs.good.matrix[i] << " " << rhs.data << " ("
+                  << rhs.good.matrix[i] - rhs.data << ") "
+                  << rhs.good.matrix[rhs.good.columns - 1] << std::endl;
+        equal = false;
+      }
+    }
+
+    if (memcmp(lhs.good.matrix[metrics], rhs.good.matrix[metrics],
+               (metrics + 2) * sizeof(double)) != 0) {
+      std::cout << "extra differs" << std::endl;
+      std::cout << lhs.good.matrix[metrics] << " " << rhs.good.matrix[metrics]
+                << std::endl;
+      std::cout << rhs.data << std::endl;
+      equal = false;
+    }
+  }
+
+  if (memcmp(&lhs.last_measured, &rhs.last_measured, sizeof(double)) != 0) {
+    std::cout << "last_measured differ" << std::endl;
+    equal = false;
+  }
+
+  if (memcmp(lhs.result, rhs.result, metrics) != 0) {
+    std::cout << "result differ" << std::endl;
+    equal = false;
+  }
+
+  return equal;
+}
+
 class llsp {
   struct llsp_disposer {
     void operator()(llsp_t *llsp) { llsp_dispose(llsp); }
@@ -37,6 +131,10 @@ public:
   const double *solve() { return llsp_solve(llsp_.get()); }
   double predict(const double *metrics) {
     return llsp_predict(llsp_.get(), metrics);
+  }
+
+  bool operator==(const llsp& rhs) const {
+    return *llsp_ == *rhs.llsp_;
   }
 };
 
@@ -82,6 +180,10 @@ struct estimator_ctx {
     jobs.erase(it);
 
     return job;
+  }
+
+  bool operator==(const estimator_ctx &rhs) const {
+    return type == rhs.type && count == rhs.count && llsp == rhs.llsp;
   }
 
   estimator_ctx(const uint64_t type_, const size_t count_)
@@ -134,6 +236,11 @@ struct estimator::impl {
     return job.prediction;
   }
 
+  bool operator==(const impl &rhs) const {
+    return std::equal(estimators.begin(), estimators.end(),
+                      rhs.estimators.begin());
+  }
+
   impl() {}
   ~impl() {}
 };
@@ -165,5 +272,9 @@ void estimator::train(const uint64_t job_type, const uint64_t id,
                        duration_cast<duration<double>>(exectime).count());
     estimator.llsp.solve();
   }
+}
+
+bool estimator::operator==(const estimator &rhs) const {
+  return *d_ == *rhs.d_;
 }
 }
