@@ -15,6 +15,8 @@ extern "C" {
 #include "llsp.h"
 }
 
+#include "llsp-internal.h"
+
 [[noreturn]] static void throw_estimator_not_found(const uint64_t type) {
   std::ostringstream os;
   os << "Estimator for type " << std::hex << type << " not found.";
