@@ -133,5 +133,6 @@ std::ostream &operator<<(std::ostream &os, const enum attribute &attr) {
   case attribute::wakeup_balance:
     return os << "wakeup_balance";
   }
+  return os;
 }
 
