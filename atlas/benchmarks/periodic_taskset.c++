@@ -18,7 +18,6 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 
-#include <boost/math/common_factor_rt.hpp>
 #include <boost/program_options.hpp>
 
 #include "atlas/atlas.h"
