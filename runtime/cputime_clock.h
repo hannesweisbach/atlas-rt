@@ -11,7 +11,7 @@ class cputime_clock {
 public:
   using rep = typename std::chrono::nanoseconds::rep;
   using period = typename std::chrono::nanoseconds::period;
-  using duration = typename std::chrono::nanoseconds;
+  using duration = std::chrono::nanoseconds;
   using time_point = std::chrono::time_point<cputime_clock>;
   static constexpr bool is_steady = false;
 
