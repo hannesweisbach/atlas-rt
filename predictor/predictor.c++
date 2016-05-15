@@ -6,8 +6,17 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <fstream>
 
 #include <assert.h>
+#include <cstring>
+
+#ifdef HAVE_BOOST_SERIALIZATION
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/export.hpp>
+#endif
 
 #include "predictor.h"
 
@@ -123,7 +132,68 @@ class llsp {
   };
   std::shared_ptr<llsp_t> llsp_;
 
-public:
+#ifdef HAVE_BOOST_SERIALIZATION
+  friend class boost::serialization::access;
+
+  template <class Archive>
+  void serialize(Archive &archive, struct matrix &m, double *const data,
+                 const bool extra = false) const {
+    size_t unused = 0;
+
+    archive & m.columns;
+    const size_t columns = m.columns;
+    const size_t last_col = m.columns - 1;
+
+    if (extra) {
+      const size_t rows = llsp_->metrics + 2;
+      archive & boost::serialization::make_array(m.matrix[last_col], rows);
+      unused = static_cast<size_t>(
+          std::count(m.matrix, m.matrix + columns, m.matrix[last_col]));
+      archive & unused;
+    }
+
+    for (size_t i = 0; i < columns - unused; ++i) {
+      auto offset = static_cast<ptrdiff_t>(m.matrix[i] - data);
+      archive & offset;
+      m.matrix[i] = data + offset;
+    }
+
+    for (size_t i = columns - unused; i < columns; ++i) {
+      m.matrix[i] = m.matrix[last_col];
+    }
+  }
+
+  template <class Archive>
+  void serialize(Archive &archive, const unsigned int) {
+    archive & llsp_->metrics;
+
+    {
+      const size_t count = llsp_->metrics;
+      const size_t data_size = (count + 1) * (count + 2);
+
+      archive & boost::serialization::make_array(llsp_->data, data_size);
+    }
+
+    {
+      /* full matrix view */
+      serialize(archive, llsp_->full, llsp_->data);
+      /*  sort matrix view */
+      serialize(archive, llsp_->sort, llsp_->data);
+      /*  good matrix view */
+      serialize(archive, llsp_->good, llsp_->data, true);
+    }
+
+    archive & llsp_->last_measured;
+
+    {
+      for (size_t i = 0; i < llsp_->metrics; ++i) {
+        archive & llsp_->result[i];
+      }
+    }
+  }
+#endif
+
+  public:
   llsp(const size_t count) : llsp_(llsp_new(count + 1), llsp_disposer{}) {}
   void add(const double *metrics, double target) {
     llsp_add(llsp_.get(), metrics, target);
@@ -186,13 +256,45 @@ struct estimator_ctx {
     return type == rhs.type && count == rhs.count && llsp == rhs.llsp;
   }
 
+#ifdef HAVE_BOOST_SERIALIZATION
+  template <class Archive>
+  void serialize(Archive &archive, const unsigned int) {
+    archive & llsp;
+  }
+#endif
+
   estimator_ctx(const uint64_t type_, const size_t count_)
       : type(type_), count(count_), llsp(count) {}
 };
+}
+
+#ifdef HAVE_BOOST_SERIALIZATION
+namespace boost {
+namespace serialization {
+template <class Archive>
+inline void save_construct_data(Archive &ar, const atlas::estimator_ctx *e,
+                                const unsigned int) {
+  ar << e->type << e->count;
+}
+
+template <class Archive>
+inline void load_construct_data(Archive &ar, atlas::estimator_ctx *e,
+                                const unsigned int) {
+  uint64_t type;
+  size_t count;
+  ar >> type >> count;
+  ::new (e) atlas::estimator_ctx(type, count);
+}
+}
+}
+#endif
+
+namespace atlas {
 
 struct estimator::impl {
   std::vector<estimator_ctx> estimators;
   mutable std::mutex lock;
+  std::string filename;
 
   auto do_find(uint64_t type) {
     auto it =
@@ -241,11 +343,37 @@ struct estimator::impl {
                       rhs.estimators.begin());
   }
 
-  impl() {}
+  void save(const char *fname) const {
+    std::string file{(fname != nullptr) ? fname : filename};
+    if (!filename.empty()) {
+#ifdef HAVE_BOOST_SERIALIZATION
+      std::ofstream os(fname);
+      boost::archive::text_oarchive oa(os);
+      oa &estimators;
+#endif
+    }
+  }
+
+  impl(const char *fname) : filename((fname != nullptr) ? fname : "") {
+    if (!filename.empty()) {
+#ifdef HAVE_BOOST_SERIALIZATION
+      std::cout << "Loading estimator contexts from " << filename << std::endl;
+      {
+        std::ifstream ifs(fname);
+        if (!ifs.is_open()) {
+          std::cerr << "Could not open file " << filename << std::endl;
+          return;
+        }
+        boost::archive::text_iarchive ia(ifs);
+        ia & estimators;
+      }
+#endif
+    }
+  }
   ~impl() {}
 };
 
-estimator::estimator() : d_(std::make_unique<impl>()) {}
+estimator::estimator(const char *fname) : d_(std::make_unique<impl>(fname)) {}
 estimator::~estimator() = default;
 std::chrono::nanoseconds estimator::predict(const uint64_t job_type,
                                             const uint64_t id,
@@ -272,6 +400,11 @@ void estimator::train(const uint64_t job_type, const uint64_t id,
                        duration_cast<duration<double>>(exectime).count());
     estimator.llsp.solve();
   }
+}
+
+void estimator::save(const char *fname) const {
+  std::lock_guard<std::mutex> l(d_->lock);
+  d_->save(fname);
 }
 
 bool estimator::operator==(const estimator &rhs) const {
