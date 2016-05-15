@@ -16,3 +16,6 @@ target_link_libraries(predictor_test predictor)
 set_target_properties(predictor_test PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(tests)
+
+install(TARGETS predictor DESTINATION lib)
+install(FILES predictor.h DESTINATION include/atlas)
