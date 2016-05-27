@@ -33,7 +33,7 @@
 #define SYS_atlas_update 361
 #define SYS_atlas_remove 362
 #elif defined(__arm__)
-#define ARG64(x) static_cast<uint32_t>(x >> 32), static_cast<uint32_t>(x & ~0)
+#define ARG64(x) static_cast<uint32_t>(x & ~0), static_cast<uint32_t>(x >> 32)
 #else
 #error Architecture not supported.
 #endif
