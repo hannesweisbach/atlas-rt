@@ -268,6 +268,7 @@ class concurrent final : public executor {
   size_t thread_count;
 
   std::atomic_bool done{false};
+  std::atomic<size_t> init{0};
 
   void process_work(dispatch_queue *queue, int cpu) {
     {
@@ -282,6 +283,7 @@ class concurrent final : public executor {
     ignore_deadlines();
     tp.join();
     current_queue = queue;
+    --init;
 
     while (!done) {
       std::list<work_item> tmp;
@@ -329,16 +331,22 @@ class concurrent final : public executor {
         }
       } catch (...) {
       }
-    };
+    }
   }
 
 public:
   concurrent(dispatch_queue *queue, std::vector<int> cpu_set)
       : workers(std::make_unique<std::thread[]>(cpu_set.size())),
-        thread_count(cpu_set.size()) {
+        thread_count(cpu_set.size()), init(thread_count) {
     for (size_t i = 0; i < cpu_set.size(); ++i) {
       workers[i] =
           std::thread(&concurrent::process_work, this, queue, cpu_set[i]);
+    }
+
+    /* wait until all threads are up, to avoid loosing a submit, when the thread
+     * pool is still empty */
+    for (; init;) {
+      std::this_thread::yield();
     }
   }
   ~concurrent() {
