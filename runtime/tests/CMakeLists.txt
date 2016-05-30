@@ -18,6 +18,10 @@ target_link_libraries(gcd-compat-test gcd-compat GTest)
 target_compile_options(gcd-compat-test PRIVATE -Wno-global-constructors)
 endif()
 
+add_executable(concurrent-queue-tests concurrent-queue-tests.c++)
+set_target_properties(concurrent-queue-tests PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(concurrent-queue-tests GTest atlas-runtime)
+
 add_executable(broken broken.c++)
 set_target_properties(broken PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(broken atlas-runtime)
