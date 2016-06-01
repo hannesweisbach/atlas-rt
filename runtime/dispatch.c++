@@ -117,7 +117,10 @@ static work_item *next_work_item() {
   next(id);
   static_assert(sizeof(id) >= sizeof(ptr),
                 "id must have at least pointer size.");
-  return reinterpret_cast<work_item *>(static_cast<uintptr_t>(id));
+  if (id == 0)
+    return nullptr;
+  else
+    return reinterpret_cast<work_item *>(static_cast<uintptr_t>(id));
 }
 
 #pragma clang diagnostic push
@@ -137,27 +140,33 @@ class queue_worker final : public executor {
 
     while (!done) {
       std::list<work_item> tmp;
+
       {
         std::unique_lock<std::mutex> lock(list_lock);
         empty.wait(lock, [this] { return !work_queue.empty(); });
+
+        /* do non-real-time work in order - pop from the front as long as there
+         * is work */
         if (!work_queue.front().is_realtime) {
           tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
-        }
-      }
+        } else {
+          /* do real-time work */
+          auto ptr = next_work_item();
 
-      if (tmp.empty()) {
-        auto ptr = next_work_item();
+          if (ptr != nullptr) {
+            auto it =
+                std::find_if(work_queue.cbegin(), work_queue.cend(),
+                             [ptr](const auto &work) { return &work == ptr; });
+            if (it == work_queue.cend()) {
+              throw std::runtime_error("Work item not found.");
+            }
 
-        {
-          std::unique_lock<std::mutex> lock(list_lock);
-          auto it =
-              std::find_if(work_queue.cbegin(), work_queue.cend(),
-                           [ptr](const auto &work) { return &work == ptr; });
-          if (it == work_queue.cend()) {
-            throw std::runtime_error("Work item not found.");
+            tmp.splice(tmp.cbegin(), work_queue, it);
+          } else {
+            /* no non-rt work and the rt work got someone else. go back to
+             * sleep. */
+            continue;
           }
-
-          tmp.splice(tmp.cbegin(), work_queue, it);
         }
       }
 
@@ -263,7 +272,6 @@ class concurrent final : public executor {
   mutable std::condition_variable empty;
   mutable std::mutex list_lock;
   mutable std::list<work_item> work_queue;
-  mutable uint64_t count = 0;
   std::unique_ptr<std::thread[]> workers;
   size_t thread_count;
 
@@ -289,29 +297,28 @@ class concurrent final : public executor {
       std::list<work_item> tmp;
       {
         std::unique_lock<std::mutex> lock(list_lock);
-        empty.wait(lock, [=] { return ((count != 0) || done); });
+        empty.wait(lock, [=] { return (!work_queue.empty() || done); });
         if (done) {
           break;
         }
-        --count;
+
         if (!work_queue.front().is_realtime) {
           tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
-        }
-      }
+        } else {
+          auto ptr = next_work_item();
 
-      if (tmp.empty()) {
-        auto ptr = next_work_item();
+          if (ptr != nullptr) {
+            auto it =
+                std::find_if(work_queue.cbegin(), work_queue.cend(),
+                             [ptr](const auto &work) { return &work == ptr; });
+            if (it == work_queue.cend()) {
+              throw std::runtime_error("Work item not found.");
+            }
 
-        {
-          std::unique_lock<std::mutex> lock(list_lock);
-          auto it =
-              std::find_if(work_queue.cbegin(), work_queue.cend(),
-                           [ptr](const auto &work) { return &work == ptr; });
-          if (it == work_queue.cend()) {
-            throw std::runtime_error("Work item not found.");
+            tmp.splice(tmp.cbegin(), work_queue, it);
+          } else {
+            continue;
           }
-
-          tmp.splice(tmp.cbegin(), work_queue, it);
         }
       }
 
@@ -389,10 +396,9 @@ public:
     {
       std::lock_guard<std::mutex> lock(list_lock);
       work_queue.splice(work_queue.end(), tmp);
-      ++count;
     }
 
-    empty.notify_one();
+    empty.notify_all();
   }
 };
 
