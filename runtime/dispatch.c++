@@ -113,14 +113,16 @@ struct dispatch_queue::impl {
 
 static work_item *next_work_item() {
   uint64_t id;
-  work_item *ptr;
-  next(id);
-  static_assert(sizeof(id) >= sizeof(ptr),
+  static_assert(sizeof(id) >= sizeof(work_item *),
                 "id must have at least pointer size.");
-  if (id == 0)
-    return nullptr;
-  else
+  auto num = next(id);
+  if (num > 1) {
+    throw std::runtime_error("Returning more than 1 job is not implemented");
+  } else if (num == 1) {
     return reinterpret_cast<work_item *>(static_cast<uintptr_t>(id));
+  } else {
+    return nullptr;
+  }
 }
 
 #pragma clang diagnostic push
