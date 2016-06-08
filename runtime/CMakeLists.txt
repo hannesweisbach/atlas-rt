@@ -1,6 +1,4 @@
-if(NOT ${DISPATCH_FOUND} MATCHES "-NOTFOUND" AND
-   NOT ${BLOCKSRUNTIME_FOUND} MATCHES "-NOTFOUND" AND
-   ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+if(NOT ${DISPATCH_FOUND} MATCHES "-NOTFOUND" AND FOUND_BLOCKSRUNTIME)
   set(HAVE_GCD ON)
   add_definitions(-DHAVE_GCD)
 else()
@@ -10,7 +8,6 @@ endif()
 if(HAVE_GCD)
   add_library(gcd-backend STATIC gcd-backend.c++)
   set_target_properties(gcd-backend PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
-  message(STATUS "${DISPATCH_FOUND}")
   target_link_libraries(gcd-backend PRIVATE ${DISPATCH_FOUND} ${CMAKE_DL_LIBS})
 endif()
 
