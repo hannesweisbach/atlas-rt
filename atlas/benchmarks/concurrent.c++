@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <atomic>
 #include <memory>
+#include <numeric>
 #include <vector>
 #include <iomanip>
 #include <chrono>
