@@ -15,13 +15,6 @@ struct work_item {
   bool is_realtime;
 };
 
-class executor {
-public:
-  virtual ~executor();
-  virtual void enqueue(work_item) const = 0;
-};
-
-
 #ifdef HAVE_GCD
 std::unique_ptr<executor> make_gcd_queue(const std::string&);
 #endif
