@@ -1,6 +1,8 @@
 project(ATLAS-rt)
 cmake_minimum_required(VERSION 2.8)
 
+set(ATLAS_VERSION "440" CACHE STRING "ATLAS Kernel version")
+
 # GTest Boilerplate begin
 include(ExternalProject)
 set_property(DIRECTORY PROPERTY EP_BASE Dependencies)
@@ -90,6 +92,8 @@ find_package(Boost 1.54.0 COMPONENTS serialization math_tr1 program_options)
 
 include_directories(.)
 include_directories(${Boost_INCLUDE_DIRS})
+# find generated atlas/syscalls.h
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/atlas)
 
 add_subdirectory(common)
 add_subdirectory(atlas)

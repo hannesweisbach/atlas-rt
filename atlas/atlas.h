@@ -17,21 +17,11 @@
 #include <unistd.h>
 #include <sys/types.h>
 
+#include "syscalls.h"
+
 #if defined(__x86_64__)
-#define SYS_atlas_next 323
-#define SYS_atlas_submit 324
-#define SYS_atlas_update 325
-#define SYS_atlas_remove 326
-#define SYS_atlas_tp_create 327
-#define SYS_atlas_tp_destroy 328
-#define SYS_atlas_tp_join 329
-#define SYS_atlas_tp_submit 330
 #define ARG64(x) x
 #elif defined(__i386__)
-#define SYS_atlas_next 359
-#define SYS_atlas_submit 360
-#define SYS_atlas_update 361
-#define SYS_atlas_remove 362
 #elif defined(__arm__)
 #define ARG64(x) (static_cast<uint32_t>(x) & ~0U), static_cast<uint32_t>(x >> 32)
 #else
