@@ -208,19 +208,23 @@ public:
     std::list<work_item> tmp;
     tmp.push_back(std::move(work));
 
-    {
-      auto &item = tmp.front();
-      const uint64_t id = reinterpret_cast<uint64_t>(&item);
-      if (item.is_realtime) {
-        const auto exectime = application_estimator.predict(
-            item.type, id, item.metrics, item.metrics_count);
-        submit(id, exectime, item.deadline);
-      }
-    }
+    work_item *item = &tmp.front();
 
+    /*
+     * link in queue first, otherwise threads might get the job id from next,
+     * but not find it in the queue.
+     */
     {
       std::lock_guard<std::mutex> lock(list_lock);
       work_queue.splice(work_queue.end(), std::move(tmp));
+    }
+
+    if (item->is_realtime) {
+      const uint64_t id = reinterpret_cast<uint64_t>(item);
+      const auto exectime = application_estimator.predict(
+          item->type, id, item->metrics, item->metrics_count);
+
+      submit(id, exectime, item->deadline);
     }
 
     empty.notify_all();
