@@ -113,126 +113,116 @@ static work_item *next_work_item() {
   }
 }
 
-class executor {
-  mutable std::condition_variable empty;
-  mutable std::mutex list_lock;
-  mutable std::list<work_item> work_queue;
-
-  virtual void submit(const uint64_t id,
-                      const std::chrono::nanoseconds exectime,
-                      const std::chrono::steady_clock::time_point deadline) const = 0;
-  mutable std::atomic_bool done{false};
-
-protected:
-  void shutdown() const {
-    using namespace std::literals::chrono_literals;
-    enqueue({{},
-             0us,
-             nullptr,
-             0,
-             0,
-             std::packaged_task<void()>([=] {
-               done = true;
-               empty.notify_all();
-             }),
-             false});
-  }
-
-  void work_loop() const {
-    while (!done) {
-      std::list<work_item> tmp;
-
-      {
-        std::unique_lock<std::mutex> lock(list_lock);
-        empty.wait(lock, [this] { return (!work_queue.empty() || done); });
-
-        if (done) {
-          break;
-        }
-
-        /* do non-real-time work in order - pop from the front as long as there
-         * is work */
-        if (!work_queue.front().is_realtime) {
-          tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
-        } else {
-          /* do real-time work */
-          auto ptr = next_work_item();
-
-          if (ptr != nullptr) {
-            auto it =
-                std::find_if(work_queue.cbegin(), work_queue.cend(),
-                             [ptr](const auto &work) { return &work == ptr; });
-            if (it == work_queue.cend()) {
-              throw std::runtime_error("Work item not found.");
-            }
-
-            tmp.splice(tmp.cbegin(), work_queue, it);
-          } else {
-            /* no non-rt work and the rt work got someone else. go back to
-             * sleep. */
-            continue;
-          }
-        }
-      }
-
-      work_item &work = tmp.front();
-
-      try {
-        auto start = cputime_clock::now();
-        // might throw std::future_error, if already invoked
-        work.work();
-        auto end = cputime_clock::now();
-
-        if (work.is_realtime) {
-          using namespace std::chrono;
-          const auto exectime = end - start;
-          const uint64_t id = reinterpret_cast<uint64_t>(&work);
-          try {
-            application_estimator.train(work.type, id,
-                                        duration_cast<microseconds>(exectime));
-          } catch (const std::runtime_error &e) {
-            std::cerr << e.what() << std::endl;
-            std::terminate();
-          }
-        }
-      } catch (const std::runtime_error &e) {
-        // Bad library, wrinting to cerr!
-        std::cerr << e.what() << std::endl;
-      }
-    };
-  }
-
-public:
-  virtual ~executor();
-  void enqueue(work_item work) const {
-    std::list<work_item> tmp;
-    tmp.push_back(std::move(work));
-
-    work_item *item = &tmp.front();
-
-    /*
-     * link in queue first, otherwise threads might get the job id from next,
-     * but not find it in the queue.
-     */
-    {
-      std::lock_guard<std::mutex> lock(list_lock);
-      work_queue.splice(work_queue.end(), std::move(tmp));
-    }
-
-    if (item->is_realtime) {
-      const uint64_t id = reinterpret_cast<uint64_t>(item);
-      const auto exectime = application_estimator.predict(
-          item->type, id, item->metrics, item->metrics_count);
-
-      submit(id, exectime, item->deadline);
-    }
-
-    empty.notify_all();
-  }
-};
-
-executor::~executor() {
+void executor::shutdown() const {
+  using namespace std::literals::chrono_literals;
+  enqueue({{},
+           0us,
+           nullptr,
+           0,
+           0,
+           std::packaged_task<void()>([=] {
+             done = true;
+             empty.notify_all();
+           }),
+           false});
 }
+
+void executor::work_loop() const {
+  while (!done) {
+    std::list<work_item> tmp;
+
+    {
+      std::unique_lock<std::mutex> lock(list_lock);
+      empty.wait(lock, [this] { return (!work_queue.empty() || done); });
+
+      if (done) {
+        break;
+      }
+
+      /* do non-real-time work in order - pop from the front as long as there
+       * is work */
+      if (!work_queue.front().is_realtime) {
+        tmp.splice(tmp.cbegin(), work_queue, work_queue.cbegin());
+      } else {
+        /* do real-time work */
+        auto ptr = next_work_item();
+
+        if (ptr != nullptr) {
+          auto it =
+              std::find_if(work_queue.cbegin(), work_queue.cend(),
+                           [ptr](const auto &work) { return &work == ptr; });
+          if (it == work_queue.cend()) {
+            std::ostringstream os;
+            os << "Could not find work item " << ptr << std::endl;
+            for (const auto &it : work_queue) {
+              os << "  " << &it << std::endl;
+            }
+            throw std::runtime_error("Work item not found.");
+          }
+
+          tmp.splice(tmp.cbegin(), work_queue, it);
+        } else {
+          /* no non-rt work and the rt work got someone else. go back to
+           * sleep. */
+          continue;
+        }
+      }
+    }
+
+    work_item &work = tmp.front();
+
+    try {
+      auto start = cputime_clock::now();
+      // might throw std::future_error, if already invoked
+      work.work();
+      auto end = cputime_clock::now();
+
+      if (work.is_realtime) {
+        using namespace std::chrono;
+        const auto exectime = end - start;
+        const uint64_t id = reinterpret_cast<uint64_t>(&work);
+        try {
+          application_estimator.train(work.type, id,
+                                      duration_cast<microseconds>(exectime));
+        } catch (const std::runtime_error &e) {
+          std::cerr << e.what() << std::endl;
+          std::terminate();
+        }
+      }
+    } catch (const std::runtime_error &e) {
+      // Bad library, wrinting to cerr!
+      std::cerr << e.what() << std::endl;
+    }
+  };
+}
+
+void executor::enqueue(work_item work) const {
+  std::list<work_item> tmp;
+  tmp.push_back(std::move(work));
+
+  work_item *item = &tmp.front();
+
+  /*
+   * link in queue first, otherwise threads might get the job id from next,
+   * but not find it in the queue.
+   */
+  {
+    std::lock_guard<std::mutex> lock(list_lock);
+    work_queue.splice(work_queue.end(), std::move(tmp));
+  }
+
+  if (item->is_realtime) {
+    const uint64_t id = reinterpret_cast<uint64_t>(item);
+    const auto exectime = application_estimator.predict(
+        item->type, id, item->metrics, item->metrics_count);
+
+    submit(id, exectime, item->deadline);
+  }
+
+  empty.notify_all();
+}
+
+executor::~executor() {}
 
 struct dispatch_queue::impl {
   uint32_t magic = 0x61746C73; // 'atls'

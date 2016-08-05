@@ -95,6 +95,8 @@ public:
   ~gcd_worker();
 
   void enqueue(work_item work) const override;
+  void submit(const uint64_t, const std::chrono::nanoseconds,
+              const std::chrono::steady_clock::time_point) const override {}
 };
 
 gcd_worker::gcd_worker(const std::string &label)
