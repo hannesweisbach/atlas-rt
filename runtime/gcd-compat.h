@@ -10,43 +10,62 @@
 extern "C" {
 #endif
 
+
 struct dispatch_queue;
 struct dispatch_queue_attr;
 typedef struct dispatch_queue *dispatch_queue_t;
 typedef struct dispatch_queue_attr *dispatch_queue_attr_t;
+
+extern dispatch_queue_attr_t DISPATCH_QUEUE_SERIAL;
+
+#if defined(__clang__) && defined(__block)
+typedef void (^dispatch_block_t)(void);
+#endif
+typedef void (*dispatch_function_t)(void *);
 
 dispatch_queue_t dispatch_queue_create(const char *label,
                                        dispatch_queue_attr_t attr);
 void dispatch_queue_release(dispatch_queue_t);
 
 #if defined(__clang__) && defined(__block)
-void dispatch_async(dispatch_queue_t queue, void (^block)(void));
-void dispatch_sync(dispatch_queue_t queue, void (^block)(void));
+void dispatch_async(dispatch_queue_t queue, dispatch_block_t);
+void dispatch_sync(dispatch_queue_t queue, dispatch_block_t);
 #endif
 
 void dispatch_async_f(dispatch_queue_t queue, void *context,
-                      void (*function)(void *));
+                      dispatch_function_t);
 void dispatch_sync_f(dispatch_queue_t queue, void *context,
-                     void (*function)(void *));
+                     dispatch_function_t);
 
 #if defined(__clang__) && defined(__block)
 void dispatch_async_atlas(dispatch_queue_t queue,
                           const struct timespec *deadline,
                           const double *metrics, const size_t metrics_count,
-                          void (^block)(void));
+                          dispatch_block_t);
 void dispatch_sync_atlas(dispatch_queue_t queue,
                          const struct timespec *deadline, const double *metrics,
-                         const size_t metrics_count, void (^block)(void));
+                         const size_t metrics_count, dispatch_block_t);
 #endif
 
 void dispatch_async_atlas_f(dispatch_queue_t queue,
                             const struct timespec *deadline,
                             const double *metrics, const size_t metrics_count,
-                            void *context, void (*function)(void *));
+                            void *context, dispatch_function_t);
 void dispatch_sync_atlas_f(dispatch_queue_t queue,
                            const struct timespec *deadline,
                            const double *metrics, const size_t metrics_count,
-                           void *context, void (*function)(void *));
+                           void *context, dispatch_function_t);
+
+typedef long dispatch_once_t;
+#if defined(__clang__) && defined(__block)
+void dispatch_once(dispatch_once_t * predicate, dispatch_block_t);
+#endif
+void dispatch_once_f(dispatch_once_t *predicate, void *context,
+                     dispatch_function_t function);
+
+void dispatch_release(dispatch_queue_t);
+
+struct timespec atlas_now(void);
 
 #ifdef __cplusplus
 }
