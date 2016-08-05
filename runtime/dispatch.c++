@@ -385,6 +385,8 @@ dispatch_queue::dispatch_queue(std::string label, cpu_set_t *cpu_set)
     : d_(std::make_unique<impl>(this, std::move(label),
                                 cpu_set_to_vector(cpu_set))) {}
 
+dispatch_queue::dispatch_queue(dispatch_queue &&) = default;
+dispatch_queue &dispatch_queue::operator=(dispatch_queue &&) = default;
 dispatch_queue::~dispatch_queue() = default;
 
 std::future<void> dispatch_queue::dispatch(std::function<void()> f) const {

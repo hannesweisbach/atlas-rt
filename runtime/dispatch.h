@@ -92,6 +92,8 @@ public:
   /* parallel queue */
   dispatch_queue(std::string label, std::initializer_list<int> cpu_set);
   dispatch_queue(std::string label, cpu_set_t *cpu_set);
+  dispatch_queue(dispatch_queue &&);
+  dispatch_queue &operator=(dispatch_queue &&);
   ~dispatch_queue();
 
   template <typename Func, typename... Args>
