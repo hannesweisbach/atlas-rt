@@ -23,6 +23,7 @@ class executor {
   mutable std::condition_variable empty;
   mutable std::mutex list_lock;
   mutable std::list<work_item> work_queue;
+  std::string label;
 
   virtual void
   submit(const uint64_t id, const std::chrono::nanoseconds exectime,
@@ -34,6 +35,8 @@ protected:
   void work_loop() const;
 
 public:
+  executor();
+  executor(std::string);
   virtual ~executor();
   virtual void enqueue(work_item work) const;
 };

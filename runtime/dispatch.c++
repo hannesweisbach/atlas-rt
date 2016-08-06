@@ -113,6 +113,9 @@ static work_item *next_work_item() {
   }
 }
 
+executor::executor(std::string label_) : label(std::move(label_)) {}
+executor::executor() : executor("default") {}
+
 void executor::shutdown() const {
   using namespace std::literals::chrono_literals;
   enqueue({{},
@@ -226,7 +229,6 @@ executor::~executor() {}
 
 struct dispatch_queue::impl {
   uint32_t magic = 0x61746C73; // 'atls'
-  std::string label_;
   std::unique_ptr<executor> worker;
 
   impl(dispatch_queue *queue, std::string label);
@@ -253,8 +255,8 @@ class queue_worker final : public executor {
   }
 
 public:
-  queue_worker(dispatch_queue *queue)
-      : thread(&queue_worker::process_work, this, queue) {}
+  queue_worker(dispatch_queue *queue, const std::string &label)
+      : executor(label), thread(&queue_worker::process_work, this, queue) {}
   ~queue_worker() {
     shutdown();
 
@@ -349,20 +351,20 @@ public:
 };
 
 dispatch_queue::impl::impl(dispatch_queue *queue, std::string label)
-    : label_(std::move(label)),
+    :
 #if defined(__clang__) && defined(__block)
-      worker(options.gcd() ? make_gcd_queue(label_)
-                           : std::make_unique<queue_worker>(queue))
+      worker(options.gcd()
+                 ? make_gcd_queue(std::move(label))
+                 : std::make_unique<queue_worker>(queue, std::move(label)))
 #else
-      worker(std::make_unique<queue_worker>(queue))
+      worker(std::make_unique<queue_worker>(queue, std::move(label)))
 #endif
 {
 }
 
-dispatch_queue::impl::impl(dispatch_queue *queue, std::string label,
+dispatch_queue::impl::impl(dispatch_queue *queue, std::string,
                            std::vector<int> cpu_set)
-    : label_(std::move(label)),
-      worker(std::make_unique<concurrent>(queue, cpu_set)) {}
+    : worker(std::make_unique<concurrent>(queue, cpu_set)) {}
 
 dispatch_queue::dispatch_queue(std::string label)
     : d_(std::make_unique<impl>(this, std::move(label))) {}
