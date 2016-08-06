@@ -20,7 +20,9 @@
 
 #include <sched.h>
 
-//#include <dispatch/dispatch.h>
+#ifdef __BLOCKS__
+#include <Block.h>
+#endif
 
 #ifdef __cplusplus
 namespace atlas {
@@ -50,7 +52,7 @@ template <typename Ret, typename... Args> uint64_t work_type(Ret(&f)(Args...)) {
   return reinterpret_cast<uint64_t>(&f);
 }
 
-#if defined(__clang__) && defined(__block)
+#ifdef __BLOCKS__
 template <typename Ret, typename... Args>
 uint64_t work_type(Ret (^&f)(Args...)) {
   struct BlockLayout {
@@ -61,9 +63,9 @@ uint64_t work_type(Ret (^&f)(Args...)) {
   };
   const auto type =
       reinterpret_cast<uint64_t>(reinterpret_cast<BlockLayout *>(f)->invoke);
-  std::cout << "Block Ref " << std::hex << type << std::endl;
   return type;
 }
+
 #if 0
 template <typename Ret, typename... Args>
 uint64_t work_type(Ret (^*f)(Args...)) {
@@ -133,6 +135,29 @@ public:
     return dispatch_async(std::forward<Func>(f), std::forward<Args>(args)...)
         .get();
   }
+
+#ifdef __BLOCKS__
+  template <typename Ret, typename... Args>
+  decltype(auto)
+  dispatch_async_atlas(const std::chrono::steady_clock::time_point deadline,
+                       const double *metrics, const size_t metrics_count,
+                       Ret (^&&block)(Args...), Args &&... args) {
+    const uint64_t type = work_type(block);
+    return dispatch(deadline, metrics, metrics_count, type, [
+      f_ = Block_copy(std::forward<decltype(block)>(block)),
+      args_ = std::make_tuple(std::forward<Args>(args)...)
+    ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
+  }
+
+  template <typename Ret, typename... Args>
+  decltype(auto) dispatch_async(Ret (^&&f)(Args...), Args &&... args) {
+    return dispatch([
+      f_ = Block_copy(std::forward<decltype(f)>(f)),
+      args_ = std::make_tuple(std::forward<Args>(args)...)
+    ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
+  }
+#endif
+
 };
 }
 #endif
