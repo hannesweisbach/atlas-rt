@@ -352,7 +352,7 @@ public:
 
 dispatch_queue::impl::impl(dispatch_queue *queue, std::string label)
     :
-#if defined(__clang__) && defined(__block)
+#ifdef __BLOCKS__
       worker(options.gcd()
                  ? make_gcd_queue(std::move(label))
                  : std::make_unique<queue_worker>(queue, std::move(label)))
