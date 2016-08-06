@@ -265,6 +265,7 @@ struct estimator_ctx {
 
   estimator_ctx(const uint64_t type_, const size_t count_)
       : type(type_), count(count_), llsp(count) {}
+  estimator_ctx() : estimator_ctx(-1, 0) {}
 };
 }
 
