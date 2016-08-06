@@ -30,13 +30,14 @@ TEST(BlocksTest, HandlesSyncArgImm) {
                             }, 3);
 }
 
-TEST(BlocksTest, HandlesSyncArgRefImm) {
+TEST(BlocksTest, HandlesSyncArgRef) {
   atlas::dispatch_queue queue("test");
+  int arg = 3;
   queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
                             0, ^(int &i) {
                               ASSERT_EQ(i, 3);
                               i = 4;
-                            }, 3);
+                            }, std::ref(arg));
 }
 
 TEST(BlocksTest, HandlesSyncArgConstRefImm) {
@@ -85,16 +86,13 @@ TEST(BlocksTest, HandlesAsyncArgImmDifferent) {
                              }, 44);
 }
 
-TEST(BlocksTest, HandlesAsyncArgRefDifferent) {
+TEST(BlocksTest, HandlesAsyncArgRef) {
   atlas::dispatch_queue queue("test");
+  int arg = 43;
   queue.dispatch_async_atlas(steady_clock::now() + 1s,
                              static_cast<double *>(nullptr), 0, ^(int &i) {
-                               ASSERT_EQ(i, 44);
-                             }, 44);
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<double *>(nullptr), 0, ^(int &i) {
-                               ASSERT_EQ(i, 44);
-                             }, 44);
+                               ASSERT_EQ(i, 43);
+                             }, std::ref(arg));
 }
 
 TEST(BlocksTest, HandlesSyncNonRt) {

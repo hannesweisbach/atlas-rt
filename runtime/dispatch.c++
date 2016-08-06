@@ -388,7 +388,7 @@ std::future<void> dispatch_queue::dispatch(std::function<void()> f) const {
                         nullptr,
                         0,
                         static_cast<uint64_t>(-1),
-                        std::packaged_task<void()>(f),
+                        std::packaged_task<void()>(std::move(f)),
                         true};
   auto future = item.work.get_future();
   d_->dispatch(std::move(item));
@@ -401,9 +401,10 @@ dispatch_queue::dispatch(const std::chrono::steady_clock::time_point deadline,
                          const uint64_t type,
                          std::function<void()> block) const {
   using namespace std::literals::chrono_literals;
-  auto item = work_item{deadline,       0us,  metrics,
-                        metrics_count,  type, std::packaged_task<void()>(block),
-                        options.atlas()};
+  auto item = work_item{
+      deadline,       0us,  metrics,
+      metrics_count,  type, std::packaged_task<void()>(std::move(block)),
+      options.atlas()};
   auto future = item.work.get_future();
   d_->dispatch(std::move(item));
   return future;

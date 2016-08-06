@@ -9,6 +9,8 @@
 #include <typeindex>
 #include <initializer_list>
 #include <ctime>
+#include <tuple>
+#include <experimental/tuple>
 
 #include <iostream>
 
@@ -25,7 +27,7 @@ namespace atlas {
 
 namespace {
 
-template <typename T> uint64_t work_type(T) {
+template <typename T> uint64_t work_type(const T &) {
   const auto type = std::type_index(typeid(T)).hash_code();
   //std::cout << "Function Ptr " << std::hex << type << std::endl;
   return type;
@@ -102,9 +104,10 @@ public:
                        const double *metrics, const size_t metrics_count,
                        Func &&block, Args &&... args) {
     const uint64_t type = work_type(block);
-    return dispatch(
-        deadline, metrics, metrics_count, type,
-        std::bind(std::forward<Func>(block), std::forward<Args>(args)...));
+    return dispatch(deadline, metrics, metrics_count, type, [
+      f_ = std::forward<Func>(block),
+      args_ = std::make_tuple(std::forward<Args>(args)...)
+    ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
   }
 
   template <typename Func, typename... Args>
@@ -119,13 +122,15 @@ public:
 
   template <typename Func, typename... Args>
   decltype(auto) dispatch_async(Func &&f, Args &&... args) {
-    return dispatch(
-        std::bind(std::forward<Func>(f), std::forward<Args>(args)...));
+    return dispatch([
+      f_ = std::forward<Func>(f),
+      args_ = std::make_tuple(std::forward<Args>(args)...)
+    ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
   }
 
   template <typename Func, typename... Args>
   auto dispatch_sync(Func &&f, Args &&... args) {
-    return dispatch(std::bind(std::forward<Func>(f), std::forward<Args>(args)...))
+    return dispatch_async(std::forward<Func>(f), std::forward<Args>(args)...)
         .get();
   }
 };

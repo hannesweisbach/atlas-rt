@@ -31,10 +31,6 @@ int main() {
   queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
                             0, f2, std::ref(foo));
   queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f3, 3);
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f3, foo);
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
                             0, f3, std::ref(foo));
   queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
                             0, f4, 3);
@@ -44,7 +40,7 @@ int main() {
                             0, f4, std::ref(foo));
 #if 1
   queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, [](int &) {}, 3);
+                            0, [](int &) {}, std::ref(foo));
 #endif
 
   queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
