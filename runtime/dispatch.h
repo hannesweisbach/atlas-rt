@@ -54,7 +54,7 @@ template <typename Ret, typename... Args> uint64_t work_type(Ret(&f)(Args...)) {
 
 #ifdef __BLOCKS__
 template <typename Ret, typename... Args>
-uint64_t work_type(Ret (^&f)(Args...)) {
+uint64_t work_type(Ret (^f)(Args...)) {
   struct BlockLayout {
     void *isa;
     int flags;
@@ -142,16 +142,16 @@ public:
   decltype(auto)
   dispatch_async_atlas(const std::chrono::steady_clock::time_point deadline,
                        const double *metrics, const size_t metrics_count,
-                       Ret (^&&block)(Args...), Args &&... args) {
+                       Ret (^block)(Args...), Args &&... args) {
     const uint64_t type = work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
-      f_ = Block_copy(std::forward<decltype(block)>(block)),
+      f_ = Block_copy(block),
       args_ = std::make_tuple(std::forward<Args>(args)...)
     ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
   }
 
   template <typename Ret, typename... Args>
-  decltype(auto) dispatch_async(Ret (^&&f)(Args...), Args &&... args) {
+  decltype(auto) dispatch_async(Ret (^f)(Args...), Args &&... args) {
     return dispatch([
       f_ = Block_copy(std::forward<decltype(f)>(f)),
       args_ = std::make_tuple(std::forward<Args>(args)...)
