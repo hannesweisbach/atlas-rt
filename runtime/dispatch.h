@@ -78,6 +78,7 @@ uint64_t work_type(Ret (^*f)(Args...)) {
 }
 
 class dispatch_queue {
+protected:
   struct impl;
   std::unique_ptr<impl> d_;
 
@@ -158,7 +159,10 @@ public:
   }
 #endif
 
+  static dispatch_queue &dispatch_get_main_queue();
+  static void dispatch_main();
 };
+
 }
 #endif
 

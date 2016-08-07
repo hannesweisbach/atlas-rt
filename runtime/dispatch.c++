@@ -231,9 +231,50 @@ struct dispatch_queue::impl {
   uint32_t magic = 0x61746C73; // 'atls'
   std::unique_ptr<executor> worker;
 
+  impl(dispatch_queue *queue);
   impl(dispatch_queue *queue, std::string label);
   impl(dispatch_queue *queue, std::string label, std::vector<int> cpu_set);
   void dispatch(work_item item) const { worker->enqueue(std::move(item)); }
+};
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wweak-vtables"
+class main_queue_executor final : public executor {
+#pragma clang diagnostic pop
+  dispatch_queue *queue_;
+  std::thread::id main_thread;
+
+  void process_work(dispatch_queue *queue) {
+    ignore_deadlines();
+    current_queue = queue;
+    executor::work_loop();
+  }
+
+  void
+  submit(const uint64_t id, const std::chrono::nanoseconds exectime,
+         const std::chrono::steady_clock::time_point deadline) const override {
+    np::submit(main_thread, id, exectime, deadline);
+  }
+
+public:
+  main_queue_executor(dispatch_queue *queue, const std::string &label)
+      : executor(label), queue_(queue),
+        main_thread(std::this_thread::get_id()) {}
+  ~main_queue_executor() { shutdown(); }
+  void dispatch() { process_work(queue_); }
+};
+
+class main_queue : public dispatch_queue {
+
+public:
+  main_queue() : dispatch_queue("main-queue-default") {
+    d_ = std::make_unique<dispatch_queue::impl>(this);
+  }
+
+  void dispatch() {
+    auto executor = static_cast<main_queue_executor *>(d_->worker.get());
+    executor->dispatch();
+  }
 };
 
 #pragma clang diagnostic push
@@ -350,6 +391,9 @@ public:
   }
 };
 
+dispatch_queue::impl::impl(dispatch_queue *queue)
+    : worker(std::make_unique<main_queue_executor>(queue, "main-queue")) {}
+
 dispatch_queue::impl::impl(dispatch_queue *queue, std::string label)
     :
 #ifdef __BLOCKS__
@@ -409,4 +453,8 @@ dispatch_queue::dispatch(const std::chrono::steady_clock::time_point deadline,
   d_->dispatch(std::move(item));
   return future;
 }
+
+static main_queue main_queue_;
+dispatch_queue &dispatch_queue::dispatch_get_main_queue() { return main_queue_; }
+void dispatch_queue::dispatch_main() { main_queue_.dispatch(); }
 }

@@ -152,5 +152,11 @@ struct timespec atlas_now(void) {
   ts.tv_nsec = duration_cast<nanoseconds>(now - seconds(ts.tv_sec)).count();
   return ts;
 }
+
+dispatch_queue_t dispatch_get_main_queue() {
+  return reinterpret_cast<dispatch_queue_t>(
+      &atlas::dispatch_queue::dispatch_get_main_queue());
+}
+void dispatch_main(void) { atlas::dispatch_queue::dispatch_main(); }
 }
 
