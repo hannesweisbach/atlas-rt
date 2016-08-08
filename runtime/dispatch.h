@@ -161,6 +161,7 @@ public:
 
   static dispatch_queue &dispatch_get_main_queue();
   static void dispatch_main();
+  static void dispatch_main_quit();
 };
 
 }

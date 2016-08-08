@@ -158,5 +158,6 @@ dispatch_queue_t dispatch_get_main_queue() {
       &atlas::dispatch_queue::dispatch_get_main_queue());
 }
 void dispatch_main(void) { atlas::dispatch_queue::dispatch_main(); }
+void dispatch_main_quit(void *) { atlas::dispatch_queue::dispatch_main_quit(); }
 }
 

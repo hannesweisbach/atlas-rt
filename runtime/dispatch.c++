@@ -256,6 +256,7 @@ class main_queue_executor final : public executor {
     np::submit(main_thread, id, exectime, deadline);
   }
 
+  friend class main_queue;
 public:
   main_queue_executor(dispatch_queue *queue, const std::string &label)
       : executor(label), queue_(queue),
@@ -274,6 +275,11 @@ public:
   void dispatch() {
     auto executor = static_cast<main_queue_executor *>(d_->worker.get());
     executor->dispatch();
+  }
+
+  void quit() {
+    auto executor = static_cast<main_queue_executor *>(d_->worker.get());
+    executor->shutdown();
   }
 };
 
@@ -457,4 +463,5 @@ dispatch_queue::dispatch(const std::chrono::steady_clock::time_point deadline,
 static main_queue main_queue_;
 dispatch_queue &dispatch_queue::dispatch_get_main_queue() { return main_queue_; }
 void dispatch_queue::dispatch_main() { main_queue_.dispatch(); }
+void dispatch_queue::dispatch_main_quit() { main_queue_.quit(); }
 }

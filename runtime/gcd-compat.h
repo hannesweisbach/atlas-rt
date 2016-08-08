@@ -66,6 +66,7 @@ void dispatch_once_f(dispatch_once_t *predicate, void *context,
 void dispatch_release(dispatch_queue_t);
 dispatch_queue_t dispatch_get_main_queue();
 void dispatch_main(void);
+void dispatch_main_quit(void *);
 struct timespec atlas_now(void);
 
 #ifdef __cplusplus
