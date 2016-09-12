@@ -144,15 +144,6 @@ void dispatch_once_f(dispatch_once_t *predicate, void *context,
   gcd.dispatch_once_f(predicate, context, function);
 }
 
-struct timespec atlas_now(void) {
-  using namespace std::chrono;
-  auto now = std::chrono::steady_clock::now().time_since_epoch();
-  struct timespec ts;
-  ts.tv_sec = duration_cast<seconds>(now).count();
-  ts.tv_nsec = duration_cast<nanoseconds>(now - seconds(ts.tv_sec)).count();
-  return ts;
-}
-
 dispatch_queue_t dispatch_get_main_queue() {
   return reinterpret_cast<dispatch_queue_t>(
       &atlas::dispatch_queue::dispatch_get_main_queue());

@@ -1,12 +1,6 @@
 #pragma once
 
 #ifdef __cplusplus
-#include <ctime>
-#else
-#include <time.h>
-#endif
-
-#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -67,7 +61,6 @@ void dispatch_release(dispatch_queue_t);
 dispatch_queue_t dispatch_get_main_queue();
 void dispatch_main(void);
 void dispatch_main_quit(void *);
-struct timespec atlas_now(void);
 
 #ifdef __cplusplus
 }

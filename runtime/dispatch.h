@@ -24,6 +24,8 @@
 #include <Block.h>
 #endif
 
+#include "atlas/atlas-clock.h"
+
 #ifdef __cplusplus
 namespace atlas {
 

@@ -146,7 +146,7 @@ struct jid_valid {
     if (!valid_pid)
       return _::id;
 
-    atlas::submit(pid, _::id, 1s, high_resolution_clock::now() + 1s);
+    atlas::submit(pid, _::id, 1s, atlas::clock::now() + 1s);
     return _::id;
   }
   static void result(result &result) {
