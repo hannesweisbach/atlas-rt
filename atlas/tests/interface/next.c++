@@ -110,7 +110,7 @@ public:
   template <typename T> auto get_invalid() const {
     auto char_ptr = static_cast<char *>(addr);
     return static_cast<T *>(static_cast<void *>(--char_ptr));
-  };
+  }
 };
 
 TEST_F(AtlasNextJob, HandleRO) {
