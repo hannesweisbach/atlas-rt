@@ -6,9 +6,9 @@
 #include <stddef.h>
 
 /* The running solution can be made to age out previously acquired knowledge
- * over time. When this aging factor is set to 1.0, no aging is performed. This
+ * over time. When this aging factor is set to 0, no aging is performed. This
  * means the solution will be equivalent to a LLS-solution over all previous
- * metrics and target values. With an aging factor a little lower than one,
+ * metrics and target values. With an aging factor a little higher than zero,
  * the solution will slightly lean towards newly added metrics/targets,
  * exhibting properties of a sliding average. */
 #ifndef AGING_FACTOR
