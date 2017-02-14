@@ -65,6 +65,10 @@ llsp_t *llsp_new(size_t count)
 		llsp->good.matrix[index_last] = malloc(column_size);
 		if (!llsp->good.matrix[index_last]) abort();
 		
+		for (size_t column = 0; column < llsp->full.columns; column++) {
+			llsp->good.matrix[column] = llsp->good.matrix[index_last];
+		}
+
 		memset(llsp->data, 0, data_size);
 	}
 	
