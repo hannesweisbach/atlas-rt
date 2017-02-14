@@ -95,7 +95,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 # find generated atlas/syscalls.h
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/atlas)
 
-add_subdirectory(common)
+add_subdirectory(utils)
 add_subdirectory(atlas)
 add_subdirectory(predictor)
 add_subdirectory(runtime)

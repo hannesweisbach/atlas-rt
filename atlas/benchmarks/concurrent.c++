@@ -10,7 +10,7 @@
 #include <boost/program_options.hpp>
 
 #include "atlas/atlas.h"
-#include "common/common.h"
+#include "utils/common.h"
 
 #include "taskgen.h"
 

@@ -7,7 +7,7 @@
 #include <boost/program_options.hpp>
 
 #include "atlas/atlas.h"
-#include "common/common.h"
+#include "utils/common.h"
 
 static auto run(unsigned jobs, size_t count) {
   using namespace std::chrono;
