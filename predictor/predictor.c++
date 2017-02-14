@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <fstream>
+#include <exception>
 
 #include <assert.h>
 #include <cstring>
@@ -359,19 +360,40 @@ struct estimator::impl {
     if (!filename.empty()) {
 #ifdef HAVE_BOOST_SERIALIZATION
       std::cout << "Loading estimator contexts from " << filename << std::endl;
-      {
+      try {
         std::ifstream ifs(fname);
-        if (!ifs.is_open()) {
-          std::cerr << "Could not open file " << filename << std::endl;
-          return;
-        }
         boost::archive::text_iarchive ia(ifs);
         ia & estimators;
+      } catch (const std::exception &e) {
+        std::cerr << "Error loading context: " << e.what();
+        estimators.clear();
       }
+#else
+      std::cout << "Boost Serialization was not available at build time. "
+                   "Loading estimator contexts disabled."
+                << std::endl;
 #endif
     }
   }
-  ~impl() {}
+  ~impl() {
+    if (!filename.empty()) {
+#ifdef HAVE_BOOST_SERIALIZATION
+      std::cout << "Saving estimator contexts to " << filename << std::endl;
+      try {
+        std::ofstream ofs(filename.c_str());
+        boost::archive::text_oarchive oa(ofs);
+        oa & estimators;
+      } catch (const std::exception &e) {
+        std::cerr << "Error loading context: " << e.what();
+      }
+#else
+      std::cout << "Boost Serialization was not available at build time. "
+                   "Saving estimator contexts disabled."
+                << std::endl;
+
+#endif
+    }
+  }
 };
 
 estimator::estimator(const char *fname) : d_(std::make_unique<impl>(fname)) {}
