@@ -24,3 +24,7 @@ if(${Boost_PROGRAM_OPTIONS_FOUND} AND ${Boost_MATH_TR1_FOUND})
 else()
   message(STATUS "periodic and concurrent benchmarks not available - Boost math and/or program_options missing.")
 endif()
+
+add_executable(tardiness tardiness.c++)
+set_target_properties(tardiness PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(tardiness Threads::Threads)
