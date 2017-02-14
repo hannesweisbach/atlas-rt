@@ -1,5 +1,7 @@
 #include "atlas-clock.h"
 
+extern "C" {
+
 struct timespec atlas_now(void) {
   using namespace std::chrono;
   auto now = atlas::clock::now().time_since_epoch();
@@ -9,3 +11,4 @@ struct timespec atlas_now(void) {
   return ts;
 }
 
+}

@@ -14,4 +14,12 @@ using time_point = clock::time_point;
 #include <time.h>
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct timespec atlas_now();
+
+#ifdef __cplusplus
+}
+#endif
