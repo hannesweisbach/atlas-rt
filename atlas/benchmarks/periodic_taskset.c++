@@ -24,6 +24,7 @@
 #include "utils/common.h"
 
 #include "taskgen.h"
+#include "common.h"
 
 #define SCHED_DEADLINE	6
 
@@ -109,28 +110,6 @@ static auto do_work(const execution_time &e) {
 #endif
 }
 
-struct result {
-  int64_t jobs{0};
-  int64_t missed{0};
-
-  result() = default;
-  result(int64_t jobs_, int64_t missed_) : jobs(jobs_), missed(missed_) {}
-
-  result operator+(const result &rhs) {
-    return result{jobs + rhs.jobs, missed + rhs.missed};
-  }
-
-  result &operator+=(const result &rhs) {
-    jobs += rhs.jobs;
-    missed += rhs.missed;
-    return *this;
-  }
-
-  friend std::ostream &operator<<(std::ostream &os, const result &rhs) {
-    return os << rhs.missed << " " << rhs.jobs;
-  }
-};
-
 class periodic_taskset {
   struct task {
     task_attr attr;
@@ -147,14 +126,14 @@ class periodic_taskset {
 
     auto submit(uint64_t id, std::chrono::steady_clock::time_point d) const {
       auto dl = d + attr.p;
-      if (edf) {
-        std::lock_guard<std::mutex> l(lock);
-        ++count;
-        deadline = dl;
-        cv.notify_one();
-      } else {
+
+      if (!edf) {
         atlas::submit(tid, id, attr.e, dl);
       }
+      std::lock_guard<std::mutex> l(lock);
+      ++count;
+      cv.notify_one();
+      deadline = dl;
       return dl;
     }
 
@@ -181,15 +160,21 @@ class periodic_taskset {
     auto next_atlas() const {
       using namespace std::chrono;
       uint64_t id;
-      atlas::next(id);
+      steady_clock::time_point dl;
 
+      {
+        std::unique_lock<std::mutex> l(lock);
+        cv.wait(l, [&id] { return atlas::next(id) != 0; });
+        --count;
+        dl = deadline;
+      }
 #ifndef MEASURE_OVERHEAD
       do_work(attr.e - 200us);
 #else
       do_work(1ms);
 #endif
 
-      return reset_deadline();
+      return std::chrono::steady_clock::now() > dl;
     }
 
     auto next(const int64_t job) const {
@@ -455,8 +440,8 @@ int main(int argc, char *argv[]) {
       "Generate and execute periodic task sets on atlas.");
 
   std::vector<size_t> tasks;
+  std::vector<int64_t> usums;
   size_t count;
-  int64_t usum;
   int64_t umax;
   int64_t pmin;
   int64_t pmax;
@@ -469,7 +454,7 @@ int main(int argc, char *argv[]) {
      "Number of tasks in the task set. (Default: 1)")
     ("count", po::value(&count)->default_value(200),
      "Number of task sets to generate. (Default: 200)")
-    ("utilization", po::value(&usum)->default_value(1000),
+    ("utilization", po::value(&usums)->multitoken(),
      "Utilization of the task sets * 1e-3. (Default: 1000)")
     ("task-utilization", po::value(&umax)->default_value(1000),
      "Maximum utilization of any task * 1e-3. (Default: 1000)")
@@ -505,6 +490,8 @@ int main(int argc, char *argv[]) {
 
   if (tasks.empty())
     tasks.push_back(2);
+  if (usums.empty())
+    usums.push_back(1000);
 
   if (vm.count("exectime")) {
     find_minimum_e(count, period{pmin}, vm.count("edf"));
@@ -515,8 +502,10 @@ int main(int argc, char *argv[]) {
     hyperperiod_t duration{0};
 
     for (size_t task = tasks.front(); task <= tasks.back(); ++task) {
-      duration += ::duration(task, U{usum}, U{umax}, count, period{pmin},
-                             period{pmax}, s{limit});
+      for (const auto &usum : usums) {
+        duration += ::duration(task, U{usum}, U{umax}, count, period{pmin},
+                               period{pmax}, s{limit});
+      }
     }
 
     std::cout << duration_cast<s>(duration).count() << std::endl;
@@ -524,14 +513,18 @@ int main(int argc, char *argv[]) {
   }
 
   for (size_t task = tasks.front(); task <= tasks.back(); ++task) {
-    if (static_cast<int64_t>(task) * umax < usum) {
-      std::cout << "nan nan" << std::endl;
-      continue;
+    for (const auto &usum : usums) {
+      if (static_cast<int64_t>(task) * umax < usum) {
+        std::cout << "nan nan" << std::endl;
+        continue;
+      }
+
+      auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
+                                  period{pmax}, vm.count("edf"));
+      std::cout << double(usum) / 1000.0 << " " << task << " " << failures
+                << std::endl;
+      std::cerr << failures << " deadline misses with " << task << " tasks "
+                << std::endl;
     }
-    auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
-                                period{pmax}, vm.count("edf"));
-    std::cout << failures << std::endl;
-    std::cerr << failures << " deadline misses with " << task << " tasks "
-              << std::endl;
   }
 }

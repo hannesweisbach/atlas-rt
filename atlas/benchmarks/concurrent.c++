@@ -13,6 +13,7 @@
 #include "utils/common.h"
 
 #include "taskgen.h"
+#include "common.h"
 
 static auto do_work(const execution_time &e) {
   using namespace std::chrono;
@@ -68,27 +69,7 @@ static auto do_work(const execution_time &e) {
 #endif
 }
 
-struct result {
-  int64_t jobs{0};
-  int64_t missed{0};
-
-  result() = default;
-  result(int64_t jobs_, int64_t missed_) : jobs(jobs_), missed(missed_) {}
-
-  result operator+(const result &rhs) {
-    return result{jobs + rhs.jobs, missed + rhs.missed};
-  }
-
-  result &operator+=(const result &rhs) {
-    jobs += rhs.jobs;
-    missed += rhs.missed;
-    return *this;
-  }
-
-  friend std::ostream &operator<<(std::ostream &os, const result &rhs) {
-    return os << rhs.missed << " " << rhs.jobs;
-  }
-};
+using namespace std::chrono;
 
 class concurrent_queue {
   uint64_t tp;
@@ -103,6 +84,12 @@ class concurrent_queue {
   std::atomic<uint64_t> init;
   std::atomic<uint64_t> done;
 
+  struct task_params {
+    nanoseconds e;
+    steady_clock::time_point dl;
+  };
+  std::vector<task_params> params;
+
   void work(const uint64_t tp_, std::atomic<int64_t> &jobs_,
             std::atomic<int64_t> &deadline_misses_,
             std::atomic<uint64_t> &init_, std::atomic<uint64_t> &done_,
@@ -113,21 +100,25 @@ class concurrent_queue {
 
     --init_;
 
-    for (; jobs_.fetch_sub(1) > 0;) {
+    for (;;) {
       using namespace std::chrono;
-      uint64_t id;
-      long err = atlas::next(id);
-      if(err <0 ) {
-        std::cout << errno << strerror(errno) << std::endl;
+      uint64_t id = 0;
+      while (jobs_ > 0 && atlas::next(id) != 1)
+        ;
+
+      if (jobs_ <= 0) {
+        break;
       }
+
+      --jobs;
 //#define MEASURE_OVERHEAD
 #ifdef MEASURE_OVERHEAD
       do_work(1ms);
 #else
-      const auto attr = reinterpret_cast<task_attr *>(id);
-      do_work(attr->e - 300us);
+      const auto params = reinterpret_cast<task_params *>(id);
+      do_work(params->e - 300us);
 #endif
-      if (reset_deadline())
+      if (steady_clock::now() > params->dl)
         ++deadline_misses_;
     }
 
@@ -158,9 +149,10 @@ public:
                               [this](const auto &sum, const auto &rhs) {
                                 return sum + (hyperperiod / rhs.p);
                               })),
-        jobs(jobs_), init(num_threads), done(num_threads) {
-    //std::cout << tasks << std::endl;
+
+        jobs(jobs_), params(jobs), init(num_threads), done(num_threads) {
     using namespace std::chrono;
+
 
     for (size_t i = 0; i < num_threads; ++i) {
       threads[i] = std::thread(&concurrent_queue::work, this, tp,
@@ -216,12 +208,15 @@ public:
       release.t = &task;
     }
 
-    for (int64_t job = 0; job < jobs_;) {
+    int64_t job = 0;
+    for (; job < jobs_;) {
       for (auto &&release : releases) {
         if (release.r <= steady_clock::now()) {
           auto dl = release.r + release.t->p;
-
-          atlas::threadpool::submit(tp, reinterpret_cast<uint64_t>(release.t),
+          auto &&p = params.at(job);
+          p.e = release.t->e;
+          p.dl = dl;
+          atlas::threadpool::submit(tp, reinterpret_cast<uint64_t>(&p),
                                     release.t->e, dl);
           release.r = dl;
           ++release.count;
@@ -300,8 +295,8 @@ int main(int argc, char *argv[]) {
       "Generate and execute periodic task sets on atlas.");
 
   std::vector<size_t> tasks;
+  std::vector<int64_t> usums;
   size_t count;
-  int64_t usum;
   int64_t umax;
   int64_t pmin;
   int64_t pmax;
@@ -313,7 +308,7 @@ int main(int argc, char *argv[]) {
      "Number of tasks in the task set. (Default: 1)")
     ("count", po::value(&count)->default_value(200),
      "Number of task sets to generate. (Default: 200)")
-    ("utilization", po::value(&usum)->default_value(1000),
+    ("utilization", po::value(&usums)->multitoken(),
      "Utilization of the task sets * 1e-3. (Default: 1000)")
     ("task-utilization", po::value(&umax)->default_value(1000),
      "Maximum utilization of any task * 1e-3. (Default: 1000)")
@@ -342,6 +337,8 @@ int main(int argc, char *argv[]) {
 
   if (tasks.empty())
     tasks.push_back(2);
+  if (usums.empty())
+    usums.push_back(1000);
 
   std::cerr << gettid() << std::endl;
   //permute();
@@ -352,16 +349,18 @@ int main(int argc, char *argv[]) {
   }
 
   for (size_t task = tasks.front(); task <= tasks.back(); ++task) {
-    std::cerr << usum << " " << umax << std::endl;
-    if (static_cast<int64_t>(task) * umax < usum) {
-      std::cout << "nan nan" << std::endl;
-      continue;
+    for (const auto &usum : usums) {
+      std::cerr << usum << " " << umax << std::endl;
+      if (static_cast<int64_t>(task) * umax < usum) {
+        std::cout << "nan nan" << std::endl;
+        continue;
+      }
+      auto failures = schedulable(task, U{usum}, U{umax}, count, period{pmin},
+                                  period{pmax});
+      std::cout << double(usum) / 1000.0 << " " << task << " " << failures << std::endl;
+      std::cerr << failures << " deadline misses with " << task << " tasks "
+                << std::endl;
     }
-    auto failures =
-        schedulable(task, U{usum}, U{umax}, count, period{pmin}, period{pmax});
-    std::cout << failures << std::endl;
-    std::cerr << failures << " deadline misses with " << task << " tasks "
-              << std::endl;
   }
 
 }
