@@ -85,7 +85,7 @@ protected:
   struct impl;
   std::unique_ptr<impl> d_;
 
-  std::future<void> dispatch(const std::chrono::steady_clock::time_point,
+  std::future<void> dispatch(const clock::time_point,
                              const double *, const size_t, const uint64_t,
                              std::function<void()>) const;
   std::future<void> dispatch(std::function<void()>) const;
@@ -109,7 +109,7 @@ public:
             typename = typename std::enable_if<
                 std::is_move_assignable<Func>::value>::type>
   decltype(auto)
-  dispatch_async_atlas(const std::chrono::steady_clock::time_point deadline,
+  dispatch_async_atlas(const clock::time_point deadline,
                        const double *metrics, const size_t metrics_count,
                        Func &&block, Args &&... args) {
     const uint64_t type = work_type(block);
@@ -121,7 +121,7 @@ public:
 
   template <typename Func, typename... Args,
             typename = std::result_of_t<Func(Args...)>>
-  auto dispatch_sync_atlas(const std::chrono::steady_clock::time_point deadline,
+  auto dispatch_sync_atlas(const clock::time_point deadline,
                            const double *metrics, const size_t metrics_count,
                            Func &&block, Args &&... args) {
     return dispatch_async_atlas(deadline, metrics, metrics_count,
@@ -149,7 +149,7 @@ public:
 #ifdef __BLOCKS__
   template <typename Ret, typename... Args>
   decltype(auto)
-  dispatch_async_atlas(const std::chrono::steady_clock::time_point deadline,
+  dispatch_async_atlas(const clock::time_point deadline,
                        const double *metrics, const size_t metrics_count,
                        Ret (^block)(Args...), Args &&... args) {
     const uint64_t type = work_type(block);
