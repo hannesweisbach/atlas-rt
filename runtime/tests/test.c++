@@ -22,48 +22,48 @@ int main() {
   atlas::dispatch_queue queue("test");
 
   int foo;
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f1);
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f2, 3);
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f2, foo);
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f2, std::ref(foo));
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f3, std::ref(foo));
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f4, 3);
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f4, foo);
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, f4, std::ref(foo));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f1);
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f2, 3);
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f2, foo);
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f2, std::ref(foo));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f3, std::ref(foo));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f4, 3);
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f4, foo);
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), f4, std::ref(foo));
 #if 1
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, [](int &) {}, std::ref(foo));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), [](int &) {}, std::ref(foo));
 #endif
 
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, std::bind(f2, 3));
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, std::bind(f2, foo));
-  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<double *>(nullptr),
-                            0, std::bind(f2, std::placeholders::_1), 4);
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), std::bind(f2, 3));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), std::bind(f2, foo));
+  queue.dispatch_sync_atlas(steady_clock::now(), static_cast<const double *>(nullptr),
+                            size_t(0), std::bind(f2, std::placeholders::_1), 4);
 
   std::cout << 1 << std::endl;
   queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<double *>(nullptr), 0,
+                             static_cast<const double *>(nullptr), size_t(0),
                              [] { std::cout << "lambda" << std::endl; });
   std::cout << 2 << std::endl;
   queue.dispatch_async_atlas(
-      steady_clock::now() + 1s, static_cast<double *>(nullptr), 0,
+      steady_clock::now() + 1s, static_cast<const double *>(nullptr), size_t(0),
       [](char) { std::cout << "variadic lambda" << std::endl; }, 'c');
   std::cout << 3 << std::endl;
   queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<double *>(nullptr), 0, func, 5);
+                             static_cast<const double *>(nullptr), size_t(0), func, 5);
   std::cout << 4 << std::endl;
   queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<double *>(nullptr), 0, func2);
+                             static_cast<const double *>(nullptr), size_t(0), func2);
   std::cout << 5 << std::endl;
   int i = 3;
   queue.dispatch_sync(funcref, std::ref(i));
