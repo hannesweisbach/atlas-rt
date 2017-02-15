@@ -10,6 +10,7 @@
 
 namespace atlas {
 struct work_item {
+  std::chrono::steady_clock::time_point submit;
   std::chrono::steady_clock::time_point deadline;
   std::chrono::microseconds prediction;
   const double *metrics;
@@ -17,6 +18,7 @@ struct work_item {
   uint64_t type;
   std::packaged_task<void()> work;
   bool is_realtime;
+  bool internal = false;
 };
 
 class executor {

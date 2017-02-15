@@ -18,12 +18,18 @@
 #include "dispatch.h"
 #include "dispatch-internal.h"
 #include "cputime_clock.h"
+#ifdef HAVE_JEVENTS
+#include "pmu.h"
+#endif
 
 static thread_local atlas::dispatch_queue *current_queue;
 
 static pid_t gettid() { return static_cast<pid_t>(syscall(SYS_gettid)); }
 
 class Options {
+#ifdef HAVE_JEVENTS
+  std::shared_ptr<ROI> roi;
+#endif
   bool use_gcd_ = false;
   bool use_atlas_ = true;
   /* estimator dump */
@@ -44,12 +50,38 @@ public:
         use_gcd_ = false;
         use_atlas_ = false;
       }
+      std::cerr << "Backend: " << backend << std::boolalpha
+                << " (GCD:" << use_gcd_ << ", ATLAS: " << use_atlas_ << ")"
+                << std::endl;
     } catch (...) {
+    }
+
+    const char *env;
+    if ((env = std::getenv("ATLAS_PMU")) != nullptr) {
+      std::string pmu_file(env);
+      if (!pmu_file.empty()) {
+        roi = std::make_shared<ROI>(std::move(pmu_file));
+      }
     }
   }
 
   bool atlas() const { return use_atlas_; }
-  bool gcd() const { return use_gcd_; }
+  bool gcd() const {
+      return use_gcd_; }
+
+  void pmu_begin() {
+#ifdef HAVE_JEVENTS
+    if (roi)
+      roi->begin();
+#endif
+  }
+
+  void pmu_end(const atlas::work_item& work) {
+#ifdef HAVE_JEVENTS
+    if (roi)
+      roi->sample(work);
+#endif
+  }
 };
 
 
@@ -118,16 +150,12 @@ executor::executor() : executor("default") {}
 
 void executor::shutdown() const {
   using namespace std::literals::chrono_literals;
-  enqueue({{},
-           0us,
-           nullptr,
-           0,
-           0,
+  enqueue({atlas::clock::now(), atlas::clock::now(), 0us, nullptr, 0, 0,
            std::packaged_task<void()>([=] {
              done = true;
              empty.notify_all();
            }),
-           false});
+           false, true});
 }
 
 void executor::work_loop() const {
@@ -175,13 +203,17 @@ void executor::work_loop() const {
     work_item &work = tmp.front();
 
     try {
-      auto start = cputime_clock::now();
       // might throw std::future_error, if already invoked
-      work.work();
-      auto end = cputime_clock::now();
 
       if (work.is_realtime) {
         using namespace std::chrono;
+        const auto start = cputime_clock::now();
+        {
+          options.pmu_begin();
+          work.work();
+          options.pmu_end(work);
+        }
+        const auto end = cputime_clock::now();
         const auto exectime = end - start;
         const uint64_t id = reinterpret_cast<uint64_t>(&work);
         try {
@@ -191,6 +223,14 @@ void executor::work_loop() const {
           std::cerr << e.what() << std::endl;
           std::terminate();
         }
+      } else {
+        const auto pmu = !work.internal;
+        if (pmu)
+          options.pmu_begin();
+
+        work.work();
+        if (pmu)
+          options.pmu_end(work);
       }
     } catch (const std::runtime_error &e) {
       // Bad library, wrinting to cerr!
@@ -218,7 +258,8 @@ void executor::enqueue(work_item work) const {
     const uint64_t id = reinterpret_cast<uint64_t>(item);
     const auto exectime = application_estimator.predict(
         item->type, id, item->metrics, item->metrics_count);
-
+    using namespace std::chrono;
+    item->prediction = duration_cast<microseconds>(exectime);
     submit(id, exectime, item->deadline);
   }
 
@@ -433,7 +474,8 @@ dispatch_queue::~dispatch_queue() = default;
 
 std::future<void> dispatch_queue::dispatch(std::function<void()> f) const {
   using namespace std::literals::chrono_literals;
-  auto item = work_item{std::chrono::steady_clock::now(),
+  auto item = work_item{atlas::clock::now(),
+                        std::chrono::steady_clock::now(),
                         0us,
                         nullptr,
                         0,
@@ -451,10 +493,14 @@ dispatch_queue::dispatch(const std::chrono::steady_clock::time_point deadline,
                          const uint64_t type,
                          std::function<void()> block) const {
   using namespace std::literals::chrono_literals;
-  auto item = work_item{
-      deadline,       0us,  metrics,
-      metrics_count,  type, std::packaged_task<void()>(std::move(block)),
-      options.atlas()};
+  auto item = work_item{atlas::clock::now(),
+                        deadline,
+                        0us,
+                        metrics,
+                        metrics_count,
+                        type,
+                        std::packaged_task<void()>(std::move(block)),
+                        options.atlas()};
   auto future = item.work.get_future();
   d_->dispatch(std::move(item));
   return future;
