@@ -22,7 +22,7 @@ void runFrame();
 
 void startFrame() {
   std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(20); // 20 ms period
-  dispatchQueue->dispatch_async_atlas(deadline, &runFrame);
+  dispatchQueue->async(deadline, &runFrame);
 }
 
 void runFrame() {

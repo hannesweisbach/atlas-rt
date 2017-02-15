@@ -8,63 +8,59 @@ using namespace std::literals::chrono_literals;
 
 TEST(BlocksTest, HandlesSync) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_sync_atlas(steady_clock::now(),
-                            static_cast<const double *>(nullptr), size_t(0), ^{
-                                                                  });
+  queue.sync(steady_clock::now(), static_cast<const double *>(nullptr),
+             size_t(0), ^{
+             });
 }
 
 TEST(BlocksTest, HandlesSyncCapture) {
   atlas::dispatch_queue queue("test");
   int foo = 1;
-  queue.dispatch_sync_atlas(steady_clock::now(),
-                            static_cast<const double *>(nullptr), size_t(0), ^{
-                              ASSERT_EQ(foo, 1);
-                            });
+  queue.sync(steady_clock::now(), static_cast<const double *>(nullptr),
+             size_t(0), ^{
+               ASSERT_EQ(foo, 1);
+             });
 }
 
 TEST(BlocksTest, HandlesSyncArgImm) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_sync_atlas(steady_clock::now(),
-                            static_cast<const double *>(nullptr),
-                            size_t(0), ^(int i) {
-                              ASSERT_EQ(i, 3);
-                            }, 3);
+  queue.sync(steady_clock::now(), static_cast<const double *>(nullptr),
+             size_t(0), ^(int i) {
+               ASSERT_EQ(i, 3);
+             }, 3);
 }
 
 TEST(BlocksTest, HandlesSyncArgRef) {
   atlas::dispatch_queue queue("test");
   int arg = 3;
-  queue.dispatch_sync_atlas(steady_clock::now(),
-                            static_cast<const double *>(nullptr),
-                            size_t(0), ^(int &i) {
-                              ASSERT_EQ(i, 3);
-                              i = 4;
-                            }, std::ref(arg));
+  queue.sync(steady_clock::now(), static_cast<const double *>(nullptr),
+             size_t(0), ^(int &i) {
+               ASSERT_EQ(i, 3);
+               i = 4;
+             }, std::ref(arg));
 }
 
 TEST(BlocksTest, HandlesSyncArgConstRefImm) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_sync_atlas(steady_clock::now(),
-                            static_cast<const double *>(nullptr),
-                            size_t(0), ^(const int &i) {
-                              ASSERT_EQ(i, 3);
-                            }, 3);
+  queue.sync(steady_clock::now(), static_cast<const double *>(nullptr),
+             size_t(0), ^(const int &i) {
+               ASSERT_EQ(i, 3);
+             }, 3);
 }
 
 TEST(BlocksTest, HandlesAsync) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<const double *>(nullptr), size_t(0), ^{
-                                                                   });
+  queue.async(steady_clock::now() + 1s, static_cast<const double *>(nullptr),
+              size_t(0), ^{
+              });
 }
 
 TEST(BlocksTest, HandlesAsyncArgImm) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<const double *>(nullptr),
-                             size_t(0), ^(int i) {
-                               ASSERT_EQ(i, 43);
-                             }, 43);
+  queue.async(steady_clock::now() + 1s, static_cast<const double *>(nullptr),
+              size_t(0), ^(int i) {
+                ASSERT_EQ(i, 43);
+              }, 43);
 }
 
 TEST(BlocksTest, HandlesAsyncSame) {
@@ -72,47 +68,42 @@ TEST(BlocksTest, HandlesAsyncSame) {
   auto block = ^{
   };
   /* same type */
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<const double *>(nullptr), size_t(0),
-                             block);
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<const double *>(nullptr), size_t(0),
-                             block);
+  queue.async(steady_clock::now() + 1s, static_cast<const double *>(nullptr),
+              size_t(0), block);
+  queue.async(steady_clock::now() + 1s, static_cast<const double *>(nullptr),
+              size_t(0), block);
 }
 
 TEST(BlocksTest, HandlesAsyncArgImmDifferent) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<const double *>(nullptr),
-                             size_t(0), ^(int i) {
-                               ASSERT_EQ(i, 43);
-                             }, 43);
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<const double *>(nullptr),
-                             size_t(0), ^(int i) {
-                               ASSERT_EQ(i, 44);
-                             }, 44);
+  queue.async(steady_clock::now() + 1s, static_cast<const double *>(nullptr),
+              size_t(0), ^(int i) {
+                ASSERT_EQ(i, 43);
+              }, 43);
+  queue.async(steady_clock::now() + 1s, static_cast<const double *>(nullptr),
+              size_t(0), ^(int i) {
+                ASSERT_EQ(i, 44);
+              }, 44);
 }
 
 TEST(BlocksTest, HandlesAsyncArgRef) {
   atlas::dispatch_queue queue("test");
   int arg = 43;
-  queue.dispatch_async_atlas(steady_clock::now() + 1s,
-                             static_cast<const double *>(nullptr),
-                             size_t(0), ^(int &i) {
-                               ASSERT_EQ(i, 43);
-                             }, std::ref(arg));
+  queue.async(steady_clock::now() + 1s, static_cast<const double *>(nullptr),
+              size_t(0), ^(int &i) {
+                ASSERT_EQ(i, 43);
+              }, std::ref(arg));
 }
 
 TEST(BlocksTest, HandlesSyncNonRt) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_sync(^{
+  queue.sync(^{
   });
 }
 
 TEST(BlocksTest, HandlesAsyncArgImmNonRt) {
   atlas::dispatch_queue queue("test");
-  queue.dispatch_async(^(int arg) {
+  queue.async(^(int arg) {
     ASSERT_EQ(arg, 6);
   }, 6);
 }
@@ -120,7 +111,7 @@ TEST(BlocksTest, HandlesAsyncArgImmNonRt) {
 TEST(BlocksTest, HandlesAsyncArgRefNonRt) {
   atlas::dispatch_queue queue("test");
   int i = 0;
-  queue.dispatch_sync(^(int &arg) {
+  queue.sync(^(int &arg) {
     ASSERT_EQ(arg, 0);
     ++arg;
   }, std::ref(i));
@@ -128,9 +119,9 @@ TEST(BlocksTest, HandlesAsyncArgRefNonRt) {
 }
 
 static void l2(atlas::dispatch_queue &queue) {
-  queue.dispatch_sync_atlas(std::chrono::steady_clock::now(),
-                            static_cast<const double *>(nullptr), size_t(0), ^{
-                                                                  });
+  queue.sync(std::chrono::steady_clock::now(),
+             static_cast<const double *>(nullptr), size_t(0), ^{
+                                                   });
 };
 
 static void l1(atlas::dispatch_queue &queue) { l2(queue); }

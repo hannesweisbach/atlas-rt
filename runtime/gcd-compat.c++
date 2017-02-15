@@ -33,25 +33,25 @@ void dispatch_release(dispatch_queue_t queue) { dispatch_queue_release(queue); }
 #ifdef __BLOCKS__
 void dispatch_async(dispatch_queue_t queue, dispatch_block_t block) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_async(block);
+  queue_->async(block);
 }
 
 void dispatch_sync(dispatch_queue_t queue, dispatch_block_t block) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync(block);
+  queue_->sync(block);
 }
 #endif
 
 void dispatch_async_f(dispatch_queue_t queue, void *context,
                       dispatch_function_t function) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_async(function, context);
+  queue_->async(function, context);
 }
 
 void dispatch_sync_f(dispatch_queue_t queue, void *context,
                      dispatch_function_t function) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync(function, context);
+  queue_->sync(function, context);
 }
 
 #ifdef __BLOCKS__
@@ -60,7 +60,7 @@ void dispatch_async_atlas(dispatch_queue_t queue,
                           const double *metrics, const size_t metrics_count,
                           dispatch_block_t block) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_async_atlas(to_time_point(deadline), metrics, metrics_count,
+  queue_->async(to_time_point(deadline), metrics, metrics_count,
                                block);
 }
 
@@ -68,7 +68,7 @@ void dispatch_sync_atlas(dispatch_queue_t queue,
                          const struct timespec *deadline, const double *metrics,
                          const size_t metrics_count, dispatch_block_t block) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync_atlas(to_time_point(deadline), metrics, metrics_count,
+  queue_->sync(to_time_point(deadline), metrics, metrics_count,
                               block);
 }
 #endif
@@ -78,8 +78,8 @@ void dispatch_async_atlas_f(dispatch_queue_t queue,
                             const double *metrics, const size_t metrics_count,
                             void *context, dispatch_function_t function) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_async_atlas(to_time_point(deadline), metrics, metrics_count,
-                               function, context);
+  queue_->async(to_time_point(deadline), metrics, metrics_count, function,
+                context);
 }
 
 void dispatch_sync_atlas_f(dispatch_queue_t queue,
@@ -87,7 +87,7 @@ void dispatch_sync_atlas_f(dispatch_queue_t queue,
                            const double *metrics, const size_t metrics_count,
                            void *context, dispatch_function_t function) {
   auto queue_ = reinterpret_cast<atlas::dispatch_queue *>(queue);
-  queue_->dispatch_sync_atlas(to_time_point(deadline), metrics, metrics_count,
+  queue_->sync(to_time_point(deadline), metrics, metrics_count,
                               function, context);
 }
 

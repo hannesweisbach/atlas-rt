@@ -20,7 +20,7 @@ static void eventloop() {
   executor main;
 
   for (; running;) {
-    queue.dispatch_sync_atlas(1s, std::bind(&executor::runloop, &main));
+    queue.sync(1s, std::bind(&executor::runloop, &main));
   }
 }
 

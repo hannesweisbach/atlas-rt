@@ -60,7 +60,7 @@ TEST(DispatchTest, HandlesCtorDtorMPTooMany) {
 TEST(DispatchTest, HandlesDispatchAsyncUP) {
   atlas::dispatch_queue queue{"main queue", {0}};
   auto promise = std::make_shared<std::promise<void>>();
-  queue.dispatch_async([=] { promise->set_value(); });
+  queue.async([=] { promise->set_value(); });
   promise->get_future().get();
 }
 
@@ -68,7 +68,7 @@ TEST(DispatchTest, HandlesDispatchAsyncMP) {
   auto mask = generate_affinity_mask(std::thread::hardware_concurrency());
   atlas::dispatch_queue queue{"main queue", &mask};
   auto promise = std::make_shared<std::promise<void>>();
-  queue.dispatch_async([=] { promise->set_value(); });
+  queue.async([=] { promise->set_value(); });
   promise->get_future().get();
 }
 

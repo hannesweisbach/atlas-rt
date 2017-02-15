@@ -108,10 +108,9 @@ public:
             typename = std::result_of_t<Func(Args...)>,
             typename = typename std::enable_if<
                 std::is_move_assignable<Func>::value>::type>
-  decltype(auto)
-  dispatch_async_atlas(const clock::time_point deadline,
-                       const double *metrics, const size_t metrics_count,
-                       Func &&block, Args &&... args) {
+  decltype(auto) async(const clock::time_point deadline, const double *metrics,
+                       const size_t metrics_count, Func &&block,
+                       Args &&... args) {
     const uint64_t type = work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
       f_ = std::forward<Func>(block),
@@ -121,18 +120,17 @@ public:
 
   template <typename Func, typename... Args,
             typename = std::result_of_t<Func(Args...)>>
-  auto dispatch_sync_atlas(const clock::time_point deadline,
-                           const double *metrics, const size_t metrics_count,
-                           Func &&block, Args &&... args) {
-    return dispatch_async_atlas(deadline, metrics, metrics_count,
-                                std::forward<Func>(block),
-                                std::forward<Args>(args)...)
+  decltype(auto) sync(const clock::time_point deadline, const double *metrics,
+                      const size_t metrics_count, Func &&block,
+                      Args &&... args) {
+    return async(deadline, metrics, metrics_count, std::forward<Func>(block),
+                 std::forward<Args>(args)...)
         .get();
   }
 
   template <typename Func, typename... Args,
             typename = std::result_of_t<Func(Args...)>>
-  decltype(auto) dispatch_async(Func &&f, Args &&... args) {
+  decltype(auto) async(Func &&f, Args &&... args) {
     return dispatch([
       f_ = std::forward<Func>(f),
       args_ = std::make_tuple(std::forward<Args>(args)...)
@@ -141,17 +139,15 @@ public:
 
   template <typename Func, typename... Args,
             typename = std::result_of_t<Func(Args...)>>
-  auto dispatch_sync(Func &&f, Args &&... args) {
-    return dispatch_async(std::forward<Func>(f), std::forward<Args>(args)...)
-        .get();
+  auto sync(Func &&f, Args &&... args) {
+    return async(std::forward<Func>(f), std::forward<Args>(args)...).get();
   }
 
 #ifdef __BLOCKS__
   template <typename Ret, typename... Args>
-  decltype(auto)
-  dispatch_async_atlas(const clock::time_point deadline,
-                       const double *metrics, const size_t metrics_count,
-                       Ret (^block)(Args...), Args &&... args) {
+  decltype(auto) async(const clock::time_point deadline, const double *metrics,
+                       const size_t metrics_count, Ret (^block)(Args...),
+                       Args &&... args) {
     const uint64_t type = work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
       f_ = Block_copy(block),
@@ -160,10 +156,9 @@ public:
   }
 
   template <typename Ret, typename... Args>
-  decltype(auto)
-  dispatch_sync_atlas(const clock::time_point deadline,
-                       const double *metrics, const size_t metrics_count,
-                       Ret (^block)(Args...), Args &&... args) {
+  decltype(auto) sync(const clock::time_point deadline, const double *metrics,
+                      const size_t metrics_count, Ret (^block)(Args...),
+                      Args &&... args) {
     const uint64_t type = work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
       f_ = Block_copy(block),
@@ -173,36 +168,31 @@ public:
 
   /* No metrics overload */
   template <typename Ret, typename... Args>
-  decltype(auto)
-  dispatch_async_atlas(const clock::time_point deadline,
-                       Ret (^block)(Args...), Args &&... args) {
-    return dispatch_async_atlas(deadline, static_cast<const double *>(nullptr),
-                                size_t(0), block, std::forward<Args>(args)...);
+  decltype(auto) async(const clock::time_point deadline, Ret (^block)(Args...),
+                       Args &&... args) {
+    return async(deadline, static_cast<const double *>(nullptr), size_t(0),
+                 block, std::forward<Args>(args)...);
   }
 
   /* Overload for relative deadlines */
   template <typename Rep, typename Period, typename Ret, typename... Args>
-  decltype(auto)
-  dispatch_async_atlas(const std::chrono::duration<Rep, Period> deadline,
+  decltype(auto) async(const std::chrono::duration<Rep, Period> deadline,
                        const double *metrics, const size_t metrics_count,
                        Ret (^block)(Args...), Args &&... args) {
-    return dispatch_async_atlas(clock::now() + deadline,
-                                metrics, metrics_count, block,
-                                std::forward<Args>(args)...);
+    return async(clock::now() + deadline, metrics, metrics_count, block,
+                 std::forward<Args>(args)...);
   }
 
   /* Overload for relative deadline + no metrics */
   template <typename Rep, typename Period, typename Ret, typename... Args>
-  decltype(auto)
-  dispatch_async_atlas(const std::chrono::duration<Rep, Period> deadline,
+  decltype(auto) async(const std::chrono::duration<Rep, Period> deadline,
                        Ret (^block)(Args...), Args &&... args) {
-    return dispatch_async_atlas(clock::now() + deadline,
-                                static_cast<const double *>(nullptr), size_t(0),
-                                block, std::forward<Args>(args)...);
+    return async(clock::now() + deadline, static_cast<const double *>(nullptr),
+                 size_t(0), block, std::forward<Args>(args)...);
   }
 
   template <typename Ret, typename... Args>
-  decltype(auto) dispatch_async(Ret (^f)(Args...), Args &&... args) {
+  decltype(auto) async(Ret (^f)(Args...), Args &&... args) {
     return dispatch([
       f_ = Block_copy(std::forward<decltype(f)>(f)),
       args_ = std::make_tuple(std::forward<Args>(args)...)
