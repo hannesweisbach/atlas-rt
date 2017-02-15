@@ -2,6 +2,7 @@
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <iostream>
 
 #include "runtime/dispatch.h"
 
@@ -17,11 +18,9 @@ static void eventloop() {
   atlas::dispatch_queue queue("test");
 
   executor main;
-  double metric = 100.0;
 
   for (; running;) {
-    queue.dispatch_sync_atlas(steady_clock::now() + 1s, &metric, 1,
-                              std::bind(&executor::runloop, &main));
+    queue.dispatch_sync_atlas(1s, std::bind(&executor::runloop, &main));
   }
 }
 

@@ -6,7 +6,6 @@
 #include "runtime/dispatch.h"
 
 int frameNumber = 1;
-double metric = 1;
 atlas::dispatch_queue* dispatchQueue;
 std::mutex mutex;
 std::condition_variable terminateCondition;
@@ -23,7 +22,7 @@ void runFrame();
 
 void startFrame() {
   std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(20); // 20 ms period
-  dispatchQueue->dispatch_async_atlas(deadline, &metric, 1, &runFrame);
+  dispatchQueue->dispatch_async_atlas(deadline, &runFrame);
 }
 
 void runFrame() {
