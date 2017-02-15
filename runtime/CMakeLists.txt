@@ -34,7 +34,7 @@ endif()
 
 add_library(gcd-compat gcd-compat.c++)
 set_target_properties(gcd-compat PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(gcd-compat PRIVATE atlas-runtime)
+target_link_libraries(gcd-compat PRIVATE atlas-runtime dl)
 if(FOUND_BLOCKSRUNTIME)
   target_link_libraries(gcd-compat INTERFACE ${BLOCKSRUNTIME})
 endif()
