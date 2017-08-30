@@ -92,7 +92,7 @@ class gcd_worker final : public executor {
 
 public:
   gcd_worker(const std::string &);
-  ~gcd_worker();
+  ~gcd_worker() override;
 
   void enqueue(work_item work) const override;
   void submit(const uint64_t, const std::chrono::nanoseconds,
