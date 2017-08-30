@@ -302,7 +302,7 @@ public:
   main_queue_executor(dispatch_queue *queue, const std::string &label)
       : executor(label), queue_(queue),
         main_thread(std::this_thread::get_id()) {}
-  ~main_queue_executor() { shutdown(); }
+  ~main_queue_executor() override { shutdown(); }
   void dispatch() { process_work(queue_); }
 };
 
@@ -345,7 +345,7 @@ class queue_worker final : public executor {
 public:
   queue_worker(dispatch_queue *queue, const std::string &label)
       : executor(label), thread(&queue_worker::process_work, this, queue) {}
-  ~queue_worker() {
+  ~queue_worker() override {
     shutdown();
 
     if (thread.joinable())
@@ -427,7 +427,7 @@ public:
       std::this_thread::yield();
     }
   }
-  ~concurrent() {
+  ~concurrent() override {
     shutdown();
 
     for (size_t i = 0; i < thread_count; ++i) {
