@@ -472,14 +472,15 @@ dispatch_queue::dispatch_queue(dispatch_queue &&) = default;
 dispatch_queue &dispatch_queue::operator=(dispatch_queue &&) = default;
 dispatch_queue::~dispatch_queue() = default;
 
-std::future<void> dispatch_queue::dispatch(std::function<void()> f) const {
+std::future<void> dispatch_queue::dispatch(std::function<void()> f,
+                                           const uint64_t type) const {
   using namespace std::literals::chrono_literals;
   auto item = work_item{atlas::clock::now(),
                         std::chrono::steady_clock::now(),
                         0us,
                         nullptr,
                         0,
-                        static_cast<uint64_t>(-1),
+                        type,
                         std::packaged_task<void()>(std::move(f)),
                         true};
   auto future = item.work.get_future();

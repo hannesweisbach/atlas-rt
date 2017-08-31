@@ -88,7 +88,7 @@ protected:
   std::future<void> dispatch(const clock::time_point,
                              const double *, const size_t, const uint64_t,
                              std::function<void()>) const;
-  std::future<void> dispatch(std::function<void()>) const;
+  std::future<void> dispatch(std::function<void()>, const uint64_t) const;
 
 public:
   struct attr {
@@ -119,6 +119,18 @@ public:
   }
 
   template <typename Func, typename... Args,
+            typename = std::result_of<Func &(Args...)>>
+  decltype(auto) async(const clock::time_point deadline, const double *metrics,
+                       const size_t metrics_count, Func const &block,
+                       Args &&... args) {
+    const uint64_t type = work_type(block);
+    return dispatch(deadline, metrics, metrics_count, type, [
+      f_ = block,
+      args_ = std::make_tuple(std::forward<Args>(args)...)
+    ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
+  }
+
+  template <typename Func, typename... Args,
             typename = std::result_of_t<Func(Args...)>>
   decltype(auto) sync(const clock::time_point deadline, const double *metrics,
                       const size_t metrics_count, Func &&block,
@@ -131,10 +143,14 @@ public:
   template <typename Func, typename... Args,
             typename = std::result_of_t<Func(Args...)>>
   decltype(auto) async(Func &&f, Args &&... args) {
-    return dispatch([
-      f_ = std::forward<Func>(f),
-      args_ = std::make_tuple(std::forward<Args>(args)...)
-    ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
+    return dispatch(
+        [
+          f_ = std::forward<Func>(f),
+          args_ = std::make_tuple(std::forward<Args>(args)...)
+        ]() mutable {
+          std::experimental::apply(std::move(f_), std::move(args_));
+        },
+        work_type(f));
   }
 
   template <typename Func, typename... Args,
@@ -193,10 +209,14 @@ public:
 
   template <typename Ret, typename... Args>
   decltype(auto) async(Ret (^f)(Args...), Args &&... args) {
-    return dispatch([
-      f_ = Block_copy(std::forward<decltype(f)>(f)),
-      args_ = std::make_tuple(std::forward<Args>(args)...)
-    ]() mutable { std::experimental::apply(std::move(f_), std::move(args_)); });
+    return dispatch(
+        [
+          f_ = Block_copy(std::forward<decltype(f)>(f)),
+          args_ = std::make_tuple(std::forward<Args>(args)...)
+        ]() mutable {
+          std::experimental::apply(std::move(f_), std::move(args_));
+        },
+        work_type(f));
   }
 #endif
 
