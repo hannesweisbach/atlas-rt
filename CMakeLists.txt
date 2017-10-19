@@ -3,6 +3,32 @@ cmake_minimum_required(VERSION 2.8)
 
 set(ATLAS_VERSION "440" CACHE STRING "ATLAS Kernel version")
 
+set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS ON)
+
+if(${CMAKE_C_COMPILER_ID} MATCHES "Clang")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything")
+else()
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+endif()
+
+if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Weverything")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-padded")
+  set(GTEST_CXX_FLAGS "${GTEST_CXX_FLAGS} -Wno-zero-as-null-pointer-constant")
+  set(GTEST_CXX_FLAGS "${GTEST_CXX_FLAGS} -Wno-global-constructors")
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+endif()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=memory")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+
+separate_arguments(GTEST_CXX_FLAGS)
+
 # GTest Boilerplate begin
 include(ExternalProject)
 set_property(DIRECTORY PROPERTY EP_BASE Dependencies)
@@ -30,6 +56,7 @@ add_library(GTest IMPORTED STATIC GLOBAL)
 set_target_properties(GTest PROPERTIES
     IMPORTED_LOCATION                 "${GTEST_LIBRARY}"
     INTERFACE_INCLUDE_DIRECTORIES     "${GTEST_INCLUDES}"
+    INTERFACE_COMPILE_OPTIONS         "${GTEST_CXX_FLAGS}"
     IMPORTED_LINK_INTERFACE_LIBRARIES "Threads::Threads")
 
 add_library(GTestMain IMPORTED STATIC GLOBAL)
@@ -43,27 +70,6 @@ add_dependencies(GTestMain GTestExternal)
 enable_testing()
 # GTest Boilerplate end
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
-
-if(${CMAKE_C_COMPILER_ID} MATCHES "Clang")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Weverything")
-else()
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
-endif()
-
-if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Weverything")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-padded")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-endif()
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=memory")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
 
 set(BUILD_SHARED_LIBS ON)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
