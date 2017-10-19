@@ -34,24 +34,16 @@ namespace _ {
 
 template <typename T> uint64_t work_type(const T &) {
   const auto type = std::type_index(typeid(T)).hash_code();
-  //std::cout << "Function Ptr " << std::hex << type << std::endl;
   return type;
 }
 
 template <typename Ret, typename... Args>
 uint64_t work_type(Ret (*&f)(Args...)) {
-#if 0
-  const auto type = reinterpret_cast<uint64_t>(f);
-  std::cout << "Function Ptr " << std::hex << type << std::endl;
-#endif
   return reinterpret_cast<uint64_t>(f);
 }
 
-template <typename Ret, typename... Args> uint64_t work_type(Ret(&f)(Args...)) {
-#if 0
-  const auto type = reinterpret_cast<uint64_t>(&f);
-  std::cout << "Function Ref " << std::hex << type << std::endl;
-#endif
+template <typename Ret, typename... Args>
+uint64_t work_type(Ret (&f)(Args...)) {
   return reinterpret_cast<uint64_t>(&f);
 }
 
@@ -68,15 +60,6 @@ uint64_t work_type(Ret (^f)(Args...)) {
       reinterpret_cast<uint64_t>(reinterpret_cast<BlockLayout *>(f)->invoke);
   return type;
 }
-
-#if 0
-template <typename Ret, typename... Args>
-uint64_t work_type(Ret (^*f)(Args...)) {
-  const auto type = reinterpret_cast<uint64_t>(&f);
-  std::cout << "Block Ptr " << std::hex << type << std::endl;
-  return reinterpret_cast<uint64_t>(&f);
-}
-#endif
 #endif
 }
 
