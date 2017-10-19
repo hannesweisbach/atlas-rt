@@ -123,6 +123,61 @@ public:
         .get();
   }
 
+  /* No metrics overloads */
+  template <typename Func, typename... Args,
+            typename = std::result_of_t<Func(Args...)>>
+  decltype(auto) async(const clock::time_point deadline, Func &&block,
+                       Args &&... args) {
+    return async(deadline, static_cast<const double *>(nullptr), size_t(0),
+                 std::forward<Func>(block), std::forward<Args>(args)...);
+  }
+
+  template <typename Func, typename... Args,
+            typename = std::result_of_t<Func(Args...)>>
+  decltype(auto) sync(const clock::time_point deadline, Func &&block,
+                      Args &&... args) {
+    return sync(deadline, static_cast<const double *>(nullptr), size_t(0),
+                std::forward<Func>(block), std::forward<Args>(args)...);
+  }
+
+  /* Overloads for relative deadlines */
+  template <typename Rep, typename Period, typename Func, typename... Args,
+            typename = std::result_of_t<Func(Args...)>>
+  decltype(auto) async(const std::chrono::duration<Rep, Period> deadline,
+                       const double *metrics, const size_t metrics_count,
+                       Func &&block, Args &&... args) {
+    return async(clock::now() + deadline, metrics, metrics_count,
+                 std::forward<Func>(block), std::forward<Args>(args)...);
+  }
+
+  template <typename Rep, typename Period, typename Func, typename... Args,
+            typename = std::result_of_t<Func(Args...)>>
+  decltype(auto) sync(const std::chrono::duration<Rep, Period> deadline,
+            const double *metrics, const size_t metrics_count, Func &&block,
+            Args &&... args) {
+    return sync(clock::now() + deadline, metrics, metrics_count,
+                std::forward<Func>(block), std::forward<Args>(args)...);
+  }
+
+  /* Overloads for relative deadlines + no metrics */
+  template <typename Rep, typename Period, typename Func, typename... Args,
+            typename = std::result_of_t<Func(Args...)>>
+  decltype(auto) async(const std::chrono::duration<Rep, Period> deadline,
+                       Func &&block, Args &&... args) {
+    return async(clock::now() + deadline, static_cast<const double *>(nullptr),
+                 size_t(0), std::forward<Func>(block),
+                 std::forward<Args>(args)...);
+  }
+
+  template <typename Rep, typename Period, typename Func, typename... Args,
+            typename = std::result_of_t<Func(Args...)>>
+  decltype(auto) sync(const std::chrono::duration<Rep, Period> deadline,
+                      Func &&block, Args &&... args) {
+    return sync(clock::now() + deadline, static_cast<const double *>(nullptr),
+                size_t(0), std::forward<Func>(block),
+                std::forward<Args>(args)...);
+  }
+
   template <typename Func, typename... Args,
             typename = std::result_of_t<Func(Args...)>>
   decltype(auto) async(Func &&f, Args &&... args) {
