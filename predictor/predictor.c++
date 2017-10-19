@@ -266,7 +266,7 @@ struct estimator_ctx {
 
   estimator_ctx(const uint64_t type_, const size_t count_)
       : type(type_), count(count_), llsp(count) {}
-  estimator_ctx() : estimator_ctx(-1, 0) {}
+  estimator_ctx() : estimator_ctx(static_cast<uint64_t>(-1), 0) {}
 };
 }
 
@@ -359,17 +359,17 @@ struct estimator::impl {
   impl(const char *fname) : filename((fname != nullptr) ? fname : "") {
     if (!filename.empty()) {
 #ifdef HAVE_BOOST_SERIALIZATION
-      std::cout << "Loading estimator contexts from " << filename << std::endl;
+      std::cerr << "Loading estimator contexts from " << filename << std::endl;
       try {
         std::ifstream ifs(fname);
         boost::archive::text_iarchive ia(ifs);
         ia & estimators;
       } catch (const std::exception &e) {
-        std::cerr << "Error loading context: " << e.what();
+        std::cerr << "Error loading context: " << e.what() << std::endl;
         estimators.clear();
       }
 #else
-      std::cout << "Boost Serialization was not available at build time. "
+      std::cerr << "Boost Serialization was not available at build time. "
                    "Loading estimator contexts disabled."
                 << std::endl;
 #endif
@@ -378,16 +378,16 @@ struct estimator::impl {
   ~impl() {
     if (!filename.empty()) {
 #ifdef HAVE_BOOST_SERIALIZATION
-      std::cout << "Saving estimator contexts to " << filename << std::endl;
+      std::cerr << "Saving estimator contexts to " << filename << std::endl;
       try {
         std::ofstream ofs(filename.c_str());
         boost::archive::text_oarchive oa(ofs);
-        oa & estimators;
+        oa &estimators;
       } catch (const std::exception &e) {
-        std::cerr << "Error loading context: " << e.what();
+        std::cerr << "Error loading context: " << e.what() << std::endl;
       }
 #else
-      std::cout << "Boost Serialization was not available at build time. "
+      std::cerr << "Boost Serialization was not available at build time. "
                    "Saving estimator contexts disabled."
                 << std::endl;
 
