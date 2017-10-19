@@ -1,4 +1,5 @@
 #include <list>
+#include <mutex>
 #include <thread>
 #include <condition_variable>
 #include <iterator>
@@ -28,7 +29,10 @@ static pid_t gettid() { return static_cast<pid_t>(syscall(SYS_gettid)); }
 
 class Options {
 #ifdef HAVE_JEVENTS
-  std::shared_ptr<ROI> roi;
+  mutable std::mutex roi_lock;
+  mutable std::vector<atlas::pmu::ROI> rois;
+  mutable std::atomic_bool enable_roi{false};
+  std::string pmu_file;
 #endif
   bool use_gcd_ = false;
   bool use_atlas_ = true;
@@ -56,30 +60,59 @@ public:
     } catch (...) {
     }
 
+#ifdef HAVE_JEVENTS
     const char *env;
     if ((env = std::getenv("ATLAS_PMU")) != nullptr) {
-      std::string pmu_file(env);
+      pmu_file = std::string(env);
+      std::cerr << "PMU: " << pmu_file << std::endl;
       if (!pmu_file.empty()) {
-        roi = std::make_shared<ROI>(std::move(pmu_file));
+        enable_roi = true;
+        rois.reserve(16384);
       }
     }
+#endif
+  }
+
+  ~Options() {
+#ifdef HAVE_JEVENTS
+    if (!pmu_file.empty()) {
+    try {
+      std::ofstream log(pmu_file);
+      for(const auto & roi:rois) {
+        roi.log(log);
+        log << "\n";
+      }
+      log.close();
+    } catch (const std::runtime_error &e) {
+      std::cerr << e.what() << std::endl;
+    }
+    }
+#endif
   }
 
   bool atlas() const { return use_atlas_; }
   bool gcd() const {
       return use_gcd_; }
 
-  void pmu_begin() {
+  auto pmu_begin() const {
 #ifdef HAVE_JEVENTS
-    if (roi)
-      roi->begin();
+    std::lock_guard<std::mutex> guard(roi_lock);
+    if (enable_roi) {
+      rois.push_back({});
+      rois.back().begin();
+      return rois.size() - 1;
+    } else {
+      return static_cast<unsigned long>(-1);
+    }
 #endif
   }
 
-  void pmu_end(const atlas::work_item& work) {
+  void pmu_end(const size_t i, const atlas::work_item& work) {
 #ifdef HAVE_JEVENTS
-    if (roi)
-      roi->sample(work);
+    std::lock_guard<std::mutex> guard(roi_lock);
+    if (enable_roi and i != static_cast<unsigned long>(-1)) {
+      rois.at(i).sample(work);
+    }
 #endif
   }
 };
