@@ -30,7 +30,7 @@
 #ifdef __cplusplus
 namespace atlas {
 
-namespace {
+namespace _ {
 
 template <typename T> uint64_t work_type(const T &) {
   const auto type = std::type_index(typeid(T)).hash_code();
@@ -111,7 +111,7 @@ public:
   decltype(auto) async(const clock::time_point deadline, const double *metrics,
                        const size_t metrics_count, Func &&block,
                        Args &&... args) {
-    const uint64_t type = work_type(block);
+    const uint64_t type = _::work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
       f_ = std::forward<Func>(block),
       args_ = std::make_tuple(std::forward<Args>(args)...)
@@ -123,7 +123,7 @@ public:
   decltype(auto) async(const clock::time_point deadline, const double *metrics,
                        const size_t metrics_count, Func const &block,
                        Args &&... args) {
-    const uint64_t type = work_type(block);
+    const uint64_t type = _::work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
       f_ = block,
       args_ = std::make_tuple(std::forward<Args>(args)...)
@@ -150,7 +150,7 @@ public:
         ]() mutable {
           std::experimental::apply(std::move(f_), std::move(args_));
         },
-        work_type(f));
+        _::work_type(f));
   }
 
   template <typename Func, typename... Args,
@@ -164,7 +164,7 @@ public:
   decltype(auto) async(const clock::time_point deadline, const double *metrics,
                        const size_t metrics_count, Ret (^block)(Args...),
                        Args &&... args) {
-    const uint64_t type = work_type(block);
+    const uint64_t type = _::work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
       f_ = Block_copy(block),
       args_ = std::make_tuple(std::forward<Args>(args)...)
@@ -175,7 +175,7 @@ public:
   decltype(auto) sync(const clock::time_point deadline, const double *metrics,
                       const size_t metrics_count, Ret (^block)(Args...),
                       Args &&... args) {
-    const uint64_t type = work_type(block);
+    const uint64_t type = _::work_type(block);
     return dispatch(deadline, metrics, metrics_count, type, [
       f_ = Block_copy(block),
       args_ = std::make_tuple(std::forward<Args>(args)...)
@@ -216,7 +216,7 @@ public:
         ]() mutable {
           std::experimental::apply(std::move(f_), std::move(args_));
         },
-        work_type(f));
+        _::work_type(f));
   }
 #endif
 
