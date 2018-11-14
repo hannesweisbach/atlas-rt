@@ -1,0 +1,3 @@
+[submodule "3rd/upca"]
+	path = 3rd/upca
+	url = git@github.com:hannesweisbach/upca.git

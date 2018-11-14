@@ -96,8 +96,10 @@ set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost 1.54.0 COMPONENTS serialization math_tr1 program_options)
 
+if(${Boost_FOUND})
+  include_directories(${Boost_INCLUDE_DIRS})
+endif()
 include_directories(.)
-include_directories(${Boost_INCLUDE_DIRS})
 # find generated atlas/syscalls.h
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/atlas)
 
