@@ -222,6 +222,7 @@ struct estimator_ctx {
   uint64_t type;
   size_t count;
   class llsp llsp;
+  std::fstream logfile;
 
   struct job {
     uint64_t id;
@@ -264,8 +265,14 @@ struct estimator_ctx {
   }
 #endif
 
-  estimator_ctx(const uint64_t type_, const size_t count_)
-      : type(type_), count(count_), llsp(count) {}
+  estimator_ctx(const uint64_t type_, const size_t count_, const char *log = nullptr)
+      : type(type_), count(count_), llsp(count) {
+    if(log != nullptr) {
+      const auto logfname = std::string(log) + std::to_string(type);
+      std::cout << "Metrics log: " << logfname << type << std::endl;
+      logfile.open(logfname, std::ios_base::out | std::ios_base::trunc);
+    }
+  }
   estimator_ctx() : estimator_ctx(static_cast<uint64_t>(-1), 0) {}
 };
 }
@@ -297,13 +304,20 @@ struct estimator::impl {
   std::vector<estimator_ctx> estimators;
   mutable std::mutex lock;
   std::string filename;
+  const char * logname;
 
   auto do_find(uint64_t type) {
+#if 0
     auto it =
         std::lower_bound(std::begin(estimators), std::end(estimators), type,
                          [](const auto &estimator, const uint64_t type_) {
                            return estimator.type < type_;
                          });
+#else
+    auto it = std::find_if(
+        std::begin(estimators), std::end(estimators),
+        [type](const auto &estimator) { return estimator.type == type; });
+#endif
 
     if (it == std::end(estimators))
       throw_estimator_not_found(type);
@@ -324,9 +338,9 @@ struct estimator::impl {
       if (it->type == type)
         return *it;
       else
-        return *estimators.insert(it, {type, count});
+        return *estimators.insert(it, {type, count, logname});
     } catch (const std::runtime_error &) {
-      return *estimators.insert(std::end(estimators), {type, count});
+      return *estimators.insert(std::end(estimators), {type, count, logname});
     }
   }
 
@@ -356,14 +370,15 @@ struct estimator::impl {
     }
   }
 
-  impl(const char *fname) : filename((fname != nullptr) ? fname : "") {
+  impl(const char *fname, const char *logfname) : filename((fname != nullptr) ? fname : ""), logname(logfname) {
+    estimators.reserve(16);
     if (!filename.empty()) {
 #ifdef HAVE_BOOST_SERIALIZATION
       std::cerr << "Loading estimator contexts from " << filename << std::endl;
       try {
         std::ifstream ifs(fname);
         boost::archive::text_iarchive ia(ifs);
-        ia & estimators;
+        //ia & estimators;
       } catch (const std::exception &e) {
         std::cerr << "Error loading context: " << e.what() << std::endl;
         estimators.clear();
@@ -396,13 +411,13 @@ struct estimator::impl {
   }
 };
 
-estimator::estimator(const char *fname) : d_(std::make_unique<impl>(fname)) {}
+estimator::estimator(const char *fname, const char *logfile) : d_(std::make_unique<impl>(fname, logfile)) {}
 estimator::~estimator() = default;
 std::chrono::nanoseconds estimator::predict(const uint64_t job_type,
                                             const uint64_t id,
                                             const double *metrics,
                                             const size_t count) {
-  std::lock_guard<std::mutex> l(d_->lock);
+  //std::lock_guard<std::mutex> l(d_->lock);
   auto &estimator = d_->find_insert(job_type, count);
 
   {
@@ -414,19 +429,26 @@ std::chrono::nanoseconds estimator::predict(const uint64_t job_type,
 
 void estimator::train(const uint64_t job_type, const uint64_t id,
                       std::chrono::nanoseconds exectime) {
-  std::lock_guard<std::mutex> l(d_->lock);
+  //std::lock_guard<std::mutex> l(d_->lock);
   auto &estimator = d_->find(job_type);
   {
     using namespace std::chrono;
     const auto job = estimator.remove(id);
-    estimator.llsp.add(job.metrics.data(),
-                       duration_cast<duration<double>>(exectime).count());
+    const auto rawtime = duration_cast<duration<double>>(exectime).count();
+    estimator.llsp.add(job.metrics.data(), rawtime);
     estimator.llsp.solve();
+    auto & log = estimator.logfile;
+    if(log.is_open()) {
+      for(const auto & m : job.metrics) {
+        log << m << " ";
+      }
+      log << rawtime << std::endl;
+    }
   }
 }
 
 void estimator::save(const char *fname) const {
-  std::lock_guard<std::mutex> l(d_->lock);
+  //std::lock_guard<std::mutex> l(d_->lock);
   d_->save(fname);
 }
 

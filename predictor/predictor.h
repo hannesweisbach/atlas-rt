@@ -11,7 +11,7 @@ class estimator {
   std::unique_ptr<impl> d_;
 
 public:
-  estimator(const char *fname = std::getenv("ATLAS_PREDICTOR"));
+  estimator(const char *fname = std::getenv("ATLAS_PREDICTOR"), const char * logfile = std::getenv("METRICS_LOG"));
   ~estimator();
 
   std::chrono::nanoseconds predict(const uint64_t job_type, const uint64_t id,
