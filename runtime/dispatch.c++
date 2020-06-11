@@ -242,9 +242,9 @@ void executor::work_loop() const {
         using namespace std::chrono;
         const auto start = cputime_clock::now();
         {
-          options.pmu_begin();
+          //options.pmu_begin();
           work.work();
-          options.pmu_end(work);
+          //options.pmu_end(work);
         }
         const auto end = cputime_clock::now();
         const auto exectime = end - start;
@@ -257,13 +257,13 @@ void executor::work_loop() const {
           std::terminate();
         }
       } else {
-        const auto pmu = !work.internal;
-        if (pmu)
-          options.pmu_begin();
+        //const auto pmu = !work.internal;
+        //if (pmu)
+        //  options.pmu_begin();
 
         work.work();
-        if (pmu)
-          options.pmu_end(work);
+        //if (pmu)
+        //  options.pmu_end(work);
       }
     } catch (const std::runtime_error &e) {
       // Bad library, wrinting to cerr!
